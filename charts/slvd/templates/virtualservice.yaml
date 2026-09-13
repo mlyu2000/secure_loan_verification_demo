@@ -1,0 +1,32 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: slvd-vs
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "slvd.labels" . | nindent 4 }}
+spec:
+  hosts:
+    - {{ .Values.ingress.host }}
+  http:
+    - route:
+        - destination:
+            host: portal.{{ .Values.global.namespace }}.svc
+            port: { number: {{ .Values.portal.port }} }
+---
+# Mailpit UI on its own host (for viewing approval + client emails in the demo).
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: slvd-mail-vs
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "slvd.labels" . | nindent 4 }}
+spec:
+  hosts:
+    - {{ .Values.ingress.mailHost }}
+  http:
+    - route:
+        - destination:
+            host: mailpit.{{ .Values.global.namespace }}.svc
+            port: { number: {{ .Values.mailpit.uiPort }} }

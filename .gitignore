@@ -1,0 +1,28 @@
+# secrets — never commit
+values-secrets.yaml
+values-secrets.local.yaml
+.env
+
+# python
+venv/
+__pycache__/
+*.pyc
+*.db
+*.sqlite
+.pytest_cache/
+
+# node
+node_modules/
+dist/
+portal/dist/
+
+# artifacts
+logs/
+frames/
+video/
+dist/*.tgz
+
+# editor
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,72 @@
+# SLVD chart values. Secrets live in values-secrets.yaml (gitignored).
+global:
+  namespace: slvd
+  imageRegistry: registry.ctc.sg.lab:5000
+  imageTag: "0.1.0"
+
+# External host (Istio VirtualService on istio-system/ezaf-gateway)
+ingress:
+  host: slvd.aie.cs1.ctc.sg.lab
+  mailHost: slvd-mail.aie.cs1.ctc.sg.lab
+
+portal:
+  image:
+    repository: slvd-portal
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  port: 80
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+
+engine:
+  image:
+    repository: slvd
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  port: 8080
+  env:
+    # agent backend: stub (sim) | direct_llm (real) | openclaw (M2)
+    SLVD_AGENT_BACKEND: "direct_llm"
+    SLVD_SIMULATION: "0"
+    SLVD_LLM_BASE_URL: "http://litellm-helm.project-user-aieadmin.svc.cluster.local:4000/v1"
+    SLVD_LLM_MODEL: "qwen3-8-27b-int4-dflash2"
+    SLVD_APPROVER_EMAIL: "Sarah.Chen@mybank.com"
+    SLVD_CLIENT_EMAIL: "client@acme-industrial.example"
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+
+mcp:
+  image:
+    repository: slvd
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  port: 8000
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+
+mailpit:
+  image:
+    registry: docker.io
+    repository: axllent/mailpit
+    tag: "v1.21.0"
+    pullPolicy: IfNotPresent
+  smtpPort: 1025
+  uiPort: 8025
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+
+# Secrets (from values-secrets.yaml — NOT committed)
+secrets:
+  litellmApiKey: ""
+  jwtSecret: ""
+  hmacSecret: ""
+  openclawToken: ""
+
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClass: ""   # empty = default (nfs-csi on CS1)
