@@ -28,6 +28,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(true);
   const [memo, setMemo] = useState<string | null>(null);
+  const [expandedAudit, setExpandedAudit] = useState<Set<number>>(new Set());
   const runIdRef = useRef<string | null>(null);
   const terminalRef = useRef(false);
 
@@ -46,6 +47,7 @@ export default function App() {
   }, []);
 
   async function loadRun(runId: string) {
+    setExpandedAudit(new Set());
     try {
       setSnap(await pollRun(runId, setSnap));
       runIdRef.current = runId;
@@ -190,13 +192,38 @@ export default function App() {
                 <div className="card">
                   <h2>Audit Trail</h2>
                   <ul className="audit-list">
-                    {(snap?.audit ?? []).map((a, i) => (
-                      <li key={i}>
-                        <span className="n">{i + 1}</span>
-                        <span>{a.action} — {a.detail}</span>
-                        <span className="ts">{fmtTs(a.ts)}</span>
-                      </li>
-                    ))}
+                    {(snap?.audit ?? []).map((a, i) => {
+                      const open = expandedAudit.has(i);
+                      const hasDetail = a.detail && a.detail.length > 0;
+                      return (
+                        <li key={i} className={open ? "open" : ""}>
+                          <span className="n">{i + 1}</span>
+                          <div className="audit-main"
+                            onClick={() => hasDetail && setExpandedAudit((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(i)) next.delete(i); else next.add(i);
+                              return next;
+                            })}>
+                            <span className="audit-action">{a.action}</span>
+                            {hasDetail && (
+                              <>
+                                <span className="audit-detail-inline">{a.detail}</span>
+                                <span className="audit-toggle" aria-expanded={open}>{open ? "−" : "+"}</span>
+                              </>
+                            )}
+                          </div>
+                          <span className="ts">{fmtTs(a.ts)}</span>
+                          {open && (
+                            <div className="audit-detail">
+                              <div className="d-row"><span className="d-k">Actor</span><span>{a.actor}</span></div>
+                              <div className="d-row"><span className="d-k">Action</span><span>{a.action}</span></div>
+                              <div className="d-row"><span className="d-k">Detail</span><span>{a.detail || "—"}</span></div>
+                              <div className="d-row"><span className="d-k">Timestamp</span><span className="mono">{a.ts}</span></div>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}

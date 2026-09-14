@@ -164,11 +164,22 @@ body {
 .gov .actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
 /* run summary */
+.kv { display: flex; gap: 10px; font-size: 13.5px; margin: 4px 0; align-items: baseline; }
+.kv .k { color: var(--muted); min-width: 130px; flex: none; font-weight: 500; }
 .audit-list { list-style: none; margin: 0; padding: 0; }
 .audit-list li { padding: 9px 0; border-bottom: 1px solid #eef1f5; font-size: 13.5px; display: flex; gap: 12px; }
 .audit-list li:last-child { border-bottom: 0; }
 .audit-list .n { color: var(--muted); width: 18px; flex: none; }
-.audit-list .ts { color: var(--muted); font-size: 11.5px; margin-left: auto; font-family: ui-monospace, monospace; flex: none; }
+.audit-list .ts { color: var(--muted); font-size: 11.5px; margin-left: auto; font-family: ui-monospace, monospace; flex: none; align-self: flex-start; }
+.audit-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; cursor: default; }
+.audit-list li .audit-main.has-detail, .audit-list li:has(.audit-toggle) .audit-main { cursor: pointer; }
+.audit-action { font-weight: 600; flex: none; }
+.audit-detail-inline { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.audit-toggle { flex: none; width: 20px; height: 20px; line-height: 18px; text-align: center; border: 1px solid var(--border); border-radius: 6px; background: #f8fafc; color: var(--muted); font-weight: 700; font-size: 14px; }
+.audit-detail { flex: 1 1 100%; margin-top: 8px; padding: 10px 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; font-size: 12.5px; }
+.audit-detail .d-row { display: flex; gap: 10px; margin: 3px 0; }
+.audit-detail .d-k { color: var(--muted); min-width: 92px; flex: none; font-weight: 500; }
+.audit-detail .mono { font-family: ui-monospace, monospace; font-size: 11.5px; }
 
 .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600; }
 .status-pill.ok { background: #dcfce7; color: #166534; }
