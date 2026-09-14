@@ -106,12 +106,13 @@ export async function login(username: string, password: string): Promise<User> {
   return b.user;
 }
 
-export async function startRun(caseId: string, amountUsd: number): Promise<RunSnapshot> {
+export async function startRun(caseId: string, amountUsd: number,
+                               onSnap?: (s: RunSnapshot) => void): Promise<RunSnapshot> {
   const b = await jfetch("/api/runs", {
     method: "POST",
     body: JSON.stringify({ case_id: caseId, amount_usd: amountUsd }),
   });
-  return pollRun(b.run_id);
+  return pollRun(b.run_id, onSnap);
 }
 
 export async function getRun(runId: string): Promise<RunSnapshot> {
@@ -134,14 +135,18 @@ export async function chat(message: string): Promise<{ reply: string }> {
   return jfetch(`/api/chat?message=${encodeURIComponent(message)}`, { method: "POST" });
 }
 
-/** Poll a run until terminal, resolving with the final snapshot. */
+/** Poll a run until terminal OR awaiting approval (a stable state the UI can
+ *  act on). Resolving on AWAITING_APPROVAL is essential: in production mode the
+ *  run parks there until the approver clicks the signed e-mail link, so
+ *  polling to a terminal status would make the UI hang for the whole timeout. */
 export async function pollRun(runId: string, onSnap?: (s: RunSnapshot) => void,
                               timeoutMs = 180000): Promise<RunSnapshot> {
+  const settle = ["COMPLETED", "REJECTED", "FAILED", "AWAITING_APPROVAL"];
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const snap = await getRun(runId);
     onSnap?.(snap);
-    if (snap.run && ["COMPLETED", "REJECTED", "FAILED"].includes(snap.run.status)) {
+    if (snap.run && settle.includes(snap.run.status)) {
       return snap;
     }
     if (Date.now() > deadline) throw new Error("run timed out");

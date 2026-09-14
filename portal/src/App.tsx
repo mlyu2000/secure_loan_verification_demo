@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import MemoBody from "./MemoBody";
 import {
-  chat, getApproval, getUser, login, logout, pollRun, resubmit, startRun,
+  chat, getApproval, getMemo, getUser, login, logout, pollRun, resubmit, startRun,
   type RunSnapshot, type User,
 } from "./api";
 
@@ -59,15 +59,19 @@ export default function App() {
     setBusy(true);
     setMemo(null);
     try {
-      const snap = await startRun(caseId.value, amount);
-      if (!snap.run) { setError("run not found after start"); return; }
-      runIdRef.current = snap.run.run_id;
-      terminalRef.current = false;
-      // fetch the memo once terminal
-      try {
-        const m = await (await fetch(`/api/runs/${snap.run.run_id}/memo`, { headers: { Authorization: `Bearer ${localStorage.getItem("slvd_token")}` } })).json();
-        setMemo(m.memo_md || null);
-      } catch { /* memo not ready */ }
+      // stream live progress into the workflow panel while the governed run
+      // executes; resolves as soon as the run reaches a stable state
+      // (terminal OR AWAITING_APPROVAL).
+      const snap = await startRun(caseId.value, amount, setSnap);
+      runIdRef.current = snap.run!.run_id;
+      // show the memo once the run has produced it (after approval / completion)
+      const refreshMemo = async () => {
+        try {
+          const m = await getMemo(snap.run!.run_id);
+          setMemo(m.memo_md || null);
+        } catch { /* memo not ready yet */ }
+      };
+      if (snap.run?.status === "COMPLETED") await refreshMemo();
     } catch (e) { setError((e as Error).message); }
     setBusy(false);
   }, [user]);
