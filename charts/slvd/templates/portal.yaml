@@ -14,9 +14,10 @@ spec:
     metadata:
       labels:
         {{- include "slvd.labels" . | nindent 8 }}
+        {{- include "hpe-ezua.labels" . | nindent 8 }}
         app: portal
       annotations:
-        sidecar.istio.io/inject: "false"
+        sidecar.istio.io/inject: "true"
     spec:
       containers:
         - name: portal

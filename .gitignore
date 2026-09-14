@@ -1,6 +1,7 @@
 # secrets — never commit
 values-secrets.yaml
 values-secrets.local.yaml
+ezappconfig.generated.yaml
 .env
 
 # python

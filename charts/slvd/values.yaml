@@ -1,18 +1,30 @@
 # SLVD chart values. Secrets live in values-secrets.yaml (gitignored).
 global:
   namespace: slvd
-  imageRegistry: registry.ctc.sg.lab:5000
+  imageRegistry: docker.io/eric021122
   imageTag: "0.1.0"
 
-# External host (Istio VirtualService on istio-system/ezaf-gateway)
+# External hosts (Istio VirtualService on istio-system/ezaf-gateway).
+# ${DOMAIN_NAME} is substituted by the EzAppConfig controller at deploy time
+# (e.g. aie.cs1.ctc.sg.lab), so the same chart adapts to any PCAI deployment.
 ingress:
-  host: slvd.aie.cs1.ctc.sg.lab
-  mailHost: slvd-mail.aie.cs1.ctc.sg.lab
+  host: slvd.${DOMAIN_NAME}
+  mailHost: slvd-mail.${DOMAIN_NAME}
+
+# HPE EZUA — required for the EzAppConfig controller to register the app on
+# the PCAI UI (virtualService endpoint + gateway + hpe-ezua pod labels).
+ezua:
+  appName: slvd
+  type: vendor-service
+  virtualService:
+    endpoint: "slvd.${DOMAIN_NAME}"
+    mailEndpoint: "slvd-mail.${DOMAIN_NAME}"
+    istioGateway: "istio-system/ezaf-gateway"
 
 portal:
   image:
     repository: slvd-portal
-    tag: "0.1.0"
+    tag: "0.1.1"
     pullPolicy: IfNotPresent
   port: 80
   resources:
@@ -30,7 +42,8 @@ engine:
     SLVD_AGENT_BACKEND: "direct_llm"
     SLVD_SIMULATION: "0"
     SLVD_LLM_BASE_URL: "http://litellm-helm.project-user-aieadmin.svc.cluster.local:4000/v1"
-    SLVD_LLM_MODEL: "qwen3-8-27b-int4-dflash2"
+    SLVD_LLM_MODEL: "qwen3-8-27b-int4-dflash2-r2"
+    SLVD_LLM_TIMEOUT_S: "300"
     SLVD_APPROVER_EMAIL: "Sarah.Chen@mybank.com"
     SLVD_CLIENT_EMAIL: "client@acme-industrial.example"
   resources:

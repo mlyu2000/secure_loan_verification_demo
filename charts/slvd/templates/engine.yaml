@@ -14,9 +14,14 @@ spec:
     metadata:
       labels:
         {{- include "slvd.labels" . | nindent 8 }}
+        {{- include "hpe-ezua.labels" . | nindent 8 }}
         app: engine
       annotations:
-        sidecar.istio.io/inject: "false"
+        sidecar.istio.io/inject: "true"
+        # Bypass sidecar interception for SMTP (1025): plain SMTP is not
+        # TLS and the sidecar would sniff it as HTTP, breaking the
+        # engine -> mailpit handshake.
+        traffic.sidecar.istio.io/excludeOutboundPorts: "1025"
     spec:
       containers:
         - name: engine

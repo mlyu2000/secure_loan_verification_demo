@@ -14,8 +14,12 @@ spec:
     metadata:
       labels:
         {{- include "slvd.labels" . | nindent 8 }}
+        {{- include "hpe-ezua.labels" . | nindent 8 }}
         app: mailpit
       annotations:
+        # NO istio sidecar: mailpit is plain SMTP(1025)/HTTP(8025). The
+        # sidecar sniffs 1025 as HTTP and eats the SMTP banner, which
+        # breaks engine -> mailpit mail delivery.
         sidecar.istio.io/inject: "false"
     spec:
       containers:
@@ -26,7 +30,7 @@ spec:
             - { name: smtp, containerPort: 1025 }
             - { name: ui, containerPort: 8025 }
           readinessProbe:
-            httpGet: { path: /health, port: 8025 }
+            httpGet: { path: /, port: 8025 }
             initialDelaySeconds: 3
             periodSeconds: 10
           resources: {{- toYaml .Values.mailpit.resources | nindent 12 }}
