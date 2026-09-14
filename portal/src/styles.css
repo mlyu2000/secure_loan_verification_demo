@@ -113,6 +113,17 @@ body {
 .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
 .btn-green { background: var(--green); }
 .btn-green:hover:not(:disabled) { background: #15803d; }
+.btn-blue { background: #2563eb; }
+.btn-blue:hover:not(:disabled) { background: #1d4ed8; }
+.btn-blue { text-decoration: none; }
+
+/* Header approval-inbox button */
+.header .mail-btn {
+  background: #1d4ed8; color: #fff; text-decoration: none;
+  padding: 7px 14px; border-radius: 6px; font-size: 13px; font-weight: 600;
+  white-space: nowrap;
+}
+.header .mail-btn:hover { background: #1e40af; }
 
 .how {
   background: #eff6ff; border: 1px solid #dbeafe; border-radius: 10px;

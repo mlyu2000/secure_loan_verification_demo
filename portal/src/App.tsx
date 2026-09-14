@@ -11,6 +11,16 @@ const CASES = [
   { id: "CR-2026-00453", client: "Cedar Peak Materials", type: "Renewal Decision Memo", amount: 2000000 },
 ];
 
+// Mailpit web UI (approval + client emails). The demo deploys a dedicated
+// ingress host (slvd-mail.*) that proxies to mailpit:8025. If that host is
+// not reachable (e.g. local port-forward dev), fall back to same-origin.
+const MAIL_HOST = (window.location.hostname || "").startsWith("localhost") || (window.location.hostname || "").startsWith("127.0.0.1")
+  ? "http://127.0.0.1:8025"
+  : "https://slvd-mail.aie.cs1.ctc.sg.lab";
+function mailUrl(): string {
+  return MAIL_HOST + "/";
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(getUser());
   const [snap, setSnap] = useState<RunSnapshot | null>(null);
@@ -118,6 +128,9 @@ export default function App() {
               <p>The governance team has been notified. This page will automatically continue once
                 approval is granted, or you can re-submit manually after approval.</p>
               <div className="actions">
+                <a className="btn-primary btn-blue" href={mailUrl()} target="_blank" rel="noreferrer">
+                  📧 View approval email (inbox)
+                </a>
                 <button className="btn-primary btn-green" onClick={onResubmit} disabled={busy}>
                   ↻ Re-submit (Approved)
                 </button>
@@ -189,7 +202,7 @@ export default function App() {
               )}
             </>
           ) : (
-            <CaseForm cases={CASES} onGenerate={onGenerate} busy={busy} />
+            <CaseForm cases={CASES} user={user} onGenerate={onGenerate} busy={busy} />
           )}
         </div>
         {chatOpen && (
@@ -228,6 +241,10 @@ function Header({ user, onLogout }: { user: User; onLogout: () => void }) {
     <div className="header">
       <div className="brand"><span className="gear">⚙</span> Credit Risk Portal</div>
       <div className="userbox">
+        <a className="mail-btn" href={mailUrl()} target="_blank" rel="noreferrer"
+          title="Open the approval inbox (Mailpit) to view governance emails">
+          📧 Approval Inbox
+        </a>
         <div className="avatar">{initials}</div>
         <div style={{ textAlign: "right" }}>
           <div>{user.name}</div>
@@ -264,7 +281,7 @@ function Login({ onLogin, error }: { onLogin: (u: string, p: string) => void; er
   );
 }
 
-function CaseForm({ cases, onGenerate, busy }: { cases: typeof CASES; onGenerate: () => void; busy: boolean }) {
+function CaseForm({ cases, user, onGenerate, busy }: { cases: typeof CASES; user: User; onGenerate: () => void; busy: boolean }) {
   const [sel, setSel] = useState(cases[0].id);
   const c = cases.find((x) => x.id === sel)!;
   return (
@@ -272,10 +289,10 @@ function CaseForm({ cases, onGenerate, busy }: { cases: typeof CASES; onGenerate
       <div className="card">
         <h2>Analyst Portal</h2>
         <div className="section-label">SESSION INFORMATION</div>
-        <div className="row"><span className="k">Logged in as</span><span className="v">Nick Johnson</span></div>
-        <div className="row"><span className="k">Role</span><span className="v">Risk Analyst</span></div>
-        <div className="row"><span className="k">Department</span><span className="v">Credit Risk</span></div>
-        <div className="row"><span className="k">Employee ID</span><span className="v">E102938</span></div>
+        <div className="row"><span className="k">Logged in as</span><span className="v">{user.name}</span></div>
+        <div className="row"><span className="k">Role</span><span className="v">{user.role}</span></div>
+        <div className="row"><span className="k">Department</span><span className="v">{user.department}</span></div>
+        <div className="row"><span className="k">Employee ID</span><span className="v">{user.employee_id}</span></div>
       </div>
       <div className="card">
         <h2>Case Selection</h2>
