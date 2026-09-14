@@ -34,12 +34,14 @@ portal:
 engine:
   image:
     repository: slvd
-    tag: "0.1.0"
+    tag: "0.1.2"
     pullPolicy: IfNotPresent
   port: 8080
   env:
-    # agent backend: stub (sim) | direct_llm (real) | openclaw (M2)
-    SLVD_AGENT_BACKEND: "direct_llm"
+    # agent backend: stub (sim) | direct_llm (real) | openclaw (NemoClaw runtime on PCAI)
+    SLVD_AGENT_BACKEND: "openclaw"
+    # NemoClaw/OpenClaw gateway (WS): engine -> agent turn (method=agent)
+    SLVD_OPENCLAW_URL: "ws://nemoclaw-openclaw.nemoclaw.svc:80"
     SLVD_SIMULATION: "0"
     SLVD_LLM_BASE_URL: "http://litellm-helm.project-user-aieadmin.svc.cluster.local:4000/v1"
     SLVD_LLM_MODEL: "qwen3-8-27b-int4-dflash2-r2"

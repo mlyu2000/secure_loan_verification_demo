@@ -112,7 +112,7 @@ async def _run_workflow(run_id: str, case: dict, identity: Identity, amount_usd:
                         "Systems accessed — " + ", ".join(systems))
 
         store.set_step(run_id, 8, "active")
-        result = await asyncio.to_thread(draft_memo, case, data, amount_usd)
+        result = await asyncio.to_thread(draft_memo, case, data, amount_usd, identity)
         if not result.ok:
             await _fail_run(run_id, f"memo validation failed: {result.notes}")
             return
