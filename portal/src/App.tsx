@@ -49,8 +49,14 @@ export default function App() {
   async function loadRun(runId: string) {
     setExpandedAudit(new Set());
     try {
-      setSnap(await pollRun(runId, setSnap));
+      const final = await pollRun(runId, setSnap);
       runIdRef.current = runId;
+      // a completed run has a published memo — show it (deep links, approval
+      // email, and the resubmit path all land here)
+      if (final.run?.status === "COMPLETED") {
+        try { setMemo((await getMemo(runId)).memo_md || null); }
+        catch { /* memo not ready yet */ }
+      }
     } catch (e) { setError((e as Error).message); }
   }
 
