@@ -18,7 +18,7 @@ body {
   background: var(--bg);
   color: var(--text);
 }
-.app { min-height: 100vh; display: flex; flex-direction: column; }
+.app { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
 /* header */
 .header {

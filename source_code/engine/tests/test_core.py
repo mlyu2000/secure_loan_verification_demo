@@ -36,6 +36,56 @@ def test_policy_threshold_boundary():
     assert r.approval_required and len(r.reasons) == 2
 
 
+def test_assistant_answers_demo_questions():
+    from engine.assistant import answer
+    assert "SLVD" in answer("what is this demo?")
+    assert "1." in answer("how does it work?")
+    assert "credit-memo-mcp" in answer("what are the components?")
+    assert "governed MCP tools" in answer("what are the MCP tools?")
+    assert "FastAPI" in answer("why do you need both FastAPI and the openclaw agent?")
+    assert "$5,000,000" in answer("what is the approval policy?")
+    assert "Nick Johnson" in answer("who are the roles?")
+    assert "CR-2026-00451" in answer("what cases are there?")
+    # fallback to help when unknown
+    assert "assistant" in answer("hi there")
+
+
+def test_assistant_case_detail_and_memo():
+    from engine.assistant import answer
+    detail = answer("tell me about CR-2026-00451")
+    assert "Acme Industrial" in detail
+    assert "$5,000,000" in detail
+    assert "BB" in detail
+    assert "KYC: pending" in detail
+    # policy gate is reported from the real rule
+    assert "Approval required: YES" in detail
+    memo = answer("generate a memo for CR-2026-00451")
+    assert "Loan Renewal Decision Memo" in memo
+    assert "Acme Industrial" in memo
+
+
+def test_assistant_unknown_case_falls_back():
+    from engine.assistant import answer
+    r = answer("generate a memo for CR-2020-99999")
+    assert "CR-2026-00451" in r  # suggests a valid case
+
+
+def test_assistant_via_api():
+    from fastapi.testclient import TestClient
+    from engine.api import app
+    from engine.security import Identity, issue_token
+    tok = issue_token(Identity("nick", "Nick Johnson", "Risk Analyst", "E102938"))
+    client = TestClient(app)
+    r = client.post("/api/chat", params={"message": "what is the approval policy?"},
+                    headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 200
+    assert "$5,000,000" in r.json()["reply"]
+    r2 = client.post("/api/chat", params={"message": "tell me about CR-2026-00451"},
+                     headers={"Authorization": f"Bearer {tok}"})
+    assert r2.status_code == 200
+    assert "Acme" in r2.json()["reply"]
+
+
 def test_policy_audit_line():
     from engine.policy import evaluate, policy_audit_line
     assert "approval required" in policy_audit_line(evaluate(9_000_000, "clear"))

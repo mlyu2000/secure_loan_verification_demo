@@ -400,11 +400,11 @@ export default function App() {
         {chatOpen && (
           <div className="chat">
             <div className="chat-head">
-              <span>Agent Chat</span>
+              <span>SLVD Assistant</span>
               <span style={{ cursor: "pointer" }} onClick={() => setChatOpen(false)}>✕</span>
             </div>
             <div className="chat-body">
-              {chatMsgs.length === 0 && <div className="placeholder">Ask questions about cases, clients, or credit policies. You can also ask the agent to generate a memo.</div>}
+              {chatMsgs.length === 0 && <div className="placeholder">I'm the SLVD demo assistant. Ask me how this demo works, about its components, the approval policy, the roles — or about a case like CR-2026-00451. You can also ask me to generate a memo.</div>}
               {chatMsgs.map((m, i) => (
                 <div key={i} className={`msg ${m.who}`}>
                   <div className="who">{m.who === "user" ? user.name : "credit-memo-agent"}</div>
@@ -422,7 +422,7 @@ export default function App() {
         )}
       </div>
       {!chatOpen && <button onClick={() => setChatOpen(true)}
-        style={{ position: "fixed", right: 16, bottom: 16, background: "#16294f", color: "#fff", border: 0, borderRadius: 8, padding: "8px 14px", cursor: "pointer" }}>💬 Agent Chat</button>}
+        style={{ position: "fixed", right: 16, bottom: 16, background: "#16294f", color: "#fff", border: 0, borderRadius: 8, padding: "8px 14px", cursor: "pointer" }}>💬 SLVD Assistant</button>}
     </div>
   );
 }

@@ -288,29 +288,10 @@ async def resubmit_run(request_id: str, request: Request):
 @app.post("/api/chat")
 async def chat(request: Request, message: str = Query(...)):
     _auth(request)
-    # Thin agent chat: answers about cases/policies from fixtures + a memo on request.
-    from .agent import draft_memo
-    from .workflow import _load_case
-    msg = message.strip()
-    import re
-    case = None
-    for cid in re.findall(r"CR-\d{4}-\d{5}", msg):
-        case = _load_case(cid)
-        if case:
-            break
-    if "memo" in msg.lower() and case:
-        amount = case["amount_usd"]
-        res = draft_memo(case, {}, amount)
-        return {"reply": res.memo_md}
-    if case:
-        return {"reply": (f"Case {case['case_id']} — {case['client']} ({case['client_code']}): "
-                          f"{case['type']}, ${case['amount_usd']:,}. Risk rating "
-                          f"{case['credit']['risk_rating']}, utilization "
-                          f"{case['credit']['utilization_pct']}% of limit, KYC "
-                          f"{case['compliance']['kyc_status']}.")}
-    return {"reply": ("I can help with cases, clients, and credit policies. "
-                      "Try: 'what do you know about CR-2026-00451?' or "
-                      "'generate a memo for CR-2026-00451'.")}
+    # SLVD demo assistant: explains this demo (what/how/components/policy/roles/
+    # tools/values) and answers about the sample cases; can generate a memo.
+    from .assistant import answer
+    return {"reply": answer(message)}
 
 
 # ---------- internal (MCP -> engine webhook) ----------
