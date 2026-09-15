@@ -34,6 +34,17 @@ export interface ApprovalItem {
   created_at: string;
   expires_at: string;
   policy_reasons: string[];
+  agent?: string;
+  tool_host?: string;
+  facility?: string;
+  limit_usd?: number;
+  utilization_usd?: number;
+  utilization_pct?: number | string;
+  risk_rating?: string;
+  covenant_status?: string;
+  kyc_status?: string;
+  kyc_detail?: string;
+  sanctions?: string;
 }
 
 export interface ApprovalRequest {

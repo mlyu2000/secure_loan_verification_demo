@@ -153,9 +153,13 @@ class DecideIn(BaseModel):
 
 
 def _pending_approval_items() -> list[dict]:
-    """All pending approval requests, enriched with case + policy context."""
+    """All pending approval requests, enriched with case + policy context.
+
+    Includes the full case/credit/compliance detail the approval email shows, so the
+    officer's console can render the same information in a collapsible section.
+    """
     from .policy import evaluate
-    from .workflow import _load_case
+    from .workflow import _load_case, AGENT_NAME, TOOL_HOST
     items = []
     for run in store.list_runs(limit=200):
         if run["status"] != "AWAITING_APPROVAL":
@@ -164,6 +168,8 @@ def _pending_approval_items() -> list[dict]:
         if req is None or req["status"] != "pending":
             continue
         case = _load_case(run["case_id"]) or {}
+        credit = case.get("credit", {}) or {}
+        compliance = case.get("compliance", {}) or {}
         policy = evaluate(run["amount_usd"],
                           (case.get("compliance") or {}).get("kyc_status", "clear"))
         items.append({
@@ -178,6 +184,17 @@ def _pending_approval_items() -> list[dict]:
             "created_at": req["created_at"],
             "expires_at": req["expires_at"],
             "policy_reasons": policy.reasons,
+            "agent": AGENT_NAME,
+            "tool_host": TOOL_HOST,
+            "facility": credit.get("facility", "—"),
+            "limit_usd": credit.get("limit_usd", 0),
+            "utilization_usd": credit.get("utilization_usd", 0),
+            "utilization_pct": credit.get("utilization_pct", "—"),
+            "risk_rating": credit.get("risk_rating", "—"),
+            "covenant_status": credit.get("covenant_status", "—"),
+            "kyc_status": compliance.get("kyc_status", "—"),
+            "kyc_detail": compliance.get("kyc_detail", "—"),
+            "sanctions": compliance.get("sanctions", "—"),
         })
     items.sort(key=lambda x: x["created_at"])
     return items

@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import MemoBody from "./MemoBody";
 import {
-  chat, decideApproval, getApproval, getMemo, getPendingApprovals, getUser, login, logout,
-  pollRun, resubmit, startRun,
+  chat, decideApproval, getApproval, getMemo, getPendingApprovals, getRun, getUser, login,
+  logout, pollRun, resubmit, startRun,
   type ApprovalItem, type RunSnapshot, type User,
 } from "./api";
 
@@ -118,6 +118,7 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(true);
   const [memo, setMemo] = useState<string | null>(null);
   const [expandedAudit, setExpandedAudit] = useState<Set<number>>(new Set());
+  const [fromConsole, setFromConsole] = useState(false);
   const runIdRef = useRef<string | null>(null);
   const terminalRef = useRef(false);
 
@@ -134,6 +135,28 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep a parked (AWAITING_APPROVAL) run in view polling until it reaches a terminal
+  // state. Without this, opening a run "View run" from the console (or a deep link)
+  // settles on AWAITING_APPROVAL and never shows the officer's approve/reject outcome.
+  useEffect(() => {
+    if (!snap?.run || snap.run.status !== "AWAITING_APPROVAL") return;
+    const rid = snap.run.run_id;
+    const t = setInterval(async () => {
+      try {
+        const s = await getRun(rid);
+        if (s.run) setSnap(s);
+        if (s.run && ["COMPLETED", "REJECTED", "FAILED"].includes(s.run.status)) {
+          clearInterval(t);
+          if (s.run.status === "COMPLETED") {
+            try { setMemo((await getMemo(rid)).memo_md || null); }
+            catch { /* memo not ready yet */ }
+          }
+        }
+      } catch { /* transient — keep polling */ }
+    }, 2500);
+    return () => clearInterval(t);
+  }, [snap?.run?.status, snap?.run?.run_id]);
 
   async function loadRun(runId: string) {
     setExpandedAudit(new Set());
@@ -229,9 +252,11 @@ export default function App() {
                 This page will automatically continue once approval is granted, or you can re-submit
                 manually after approval.</p>
               <div className="actions">
-                <a className="btn-primary btn-blue" href={mailUrl()} target="_blank" rel="noreferrer">
-                  📧 View approval email (inbox)
-                </a>
+                {isOfficer && (
+                  <a className="btn-primary btn-blue" href={mailUrl()} target="_blank" rel="noreferrer">
+                    📧 View approval email (inbox)
+                  </a>
+                )}
                 <button className="btn-primary btn-green" onClick={onResubmit} disabled={busy}>
                   ↻ Re-submit (Approved)
                 </button>
@@ -241,6 +266,19 @@ export default function App() {
 
           {run ? (
             <>
+              {fromConsole && (
+                <button className="back-btn" onClick={() => {
+                  setSnap(null);
+                  setMemo(null);
+                  setExpandedAudit(new Set());
+                  setFromConsole(false);
+                  if (window.location.search) {
+                    history.replaceState({}, "", window.location.pathname);
+                  }
+                }}>
+                  ← Back to Approval Queue
+                </button>
+              )}
               {!isTerminal && (
                 <div className="banner"><span className="spin">◌</span> Governed run in progress…</div>
               )}
@@ -354,7 +392,7 @@ export default function App() {
               )}
             </>
           ) : isOfficer ? (
-            <ApproverConsole onOpenRun={(rid) => { window.location.search = `?run=${rid}`; }} />
+            <ApproverConsole onOpenRun={(rid) => { setFromConsole(true); loadRun(rid); }} />
           ) : (
             <CaseForm cases={CASES} user={user} onGenerate={onGenerate} busy={busy} />
           )}
@@ -424,8 +462,9 @@ function ApproverConsole({ onOpenRun }: { onOpenRun: (runId: string) => void }) 
   const [err, setErr] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
-  const [reason, setReason] = useState("");
-  const [note, setNote] = useState<string | null>(null);
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [note, setNote] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   async function refresh() {
     try {
@@ -442,18 +481,35 @@ function ApproverConsole({ onOpenRun }: { onOpenRun: (runId: string) => void }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function toggleDetail(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   async function decide(item: ApprovalItem, decision: "approve" | "reject") {
-    if (decision === "reject" && !reason.trim()) { setNote("Enter a reason before rejecting."); return; }
+    const rsn = (reasons[item.request_id] ?? "").trim();
+    if (decision === "reject" && !rsn) {
+      setNote({ kind: "err", text: "Enter a reason before rejecting." });
+      return;
+    }
     setBusyId(item.request_id);
+    setNote(null);
     try {
-      await decideApproval(item.request_id, decision, reason.trim());
-      setNote(decision === "approve"
-        ? `Approved ${item.case_id} — the run will complete and the memo is being published.`
-        : `Rejected ${item.case_id}. The run is closed; the analyst can re-submit.`);
+      const r = await decideApproval(item.request_id, decision, rsn);
+      if (r.status === decision) {
+        setNote({ kind: "ok", text: decision === "approve"
+          ? `Approved ${item.case_id} — the run is completing and the memo is being published.`
+          : `Rejected ${item.case_id}. The run is now closed (REJECTED); the analyst can re-submit. Open "View run" to confirm.` });
+      } else {
+        setNote({ kind: "ok", text: `${item.case_id} was already decided — no change made.` });
+      }
       setRejecting(null);
-      setReason("");
+      setReasons((prev) => { const n = { ...prev }; delete n[item.request_id]; return n; });
       await refresh();
-    } catch (e) { setNote((e as Error).message); }
+    } catch (e) { setNote({ kind: "err", text: (e as Error).message }); }
     finally { setBusyId(null); }
   }
 
@@ -475,44 +531,93 @@ function ApproverConsole({ onOpenRun }: { onOpenRun: (runId: string) => void }) 
         {!loading && !err && items.length === 0 && (
           <div className="queue-empty">✔ No pending approvals — everything that needs sign-off has been decided.</div>
         )}
-        {items.map((it) => (
-          <div className="queue-item" key={it.request_id}>
-            <div className="qi-head">
-              <span className="qi-case">{it.case_id}</span>
-              <span className="qi-client">{it.client} ({it.client_code})</span>
-              <span className="qi-amount">${it.amount_usd.toLocaleString()}</span>
-            </div>
-            <div className="qi-meta">
-              <span>Requested by {it.requested_by} ({it.requested_emp_id})</span>
-              <span>· {fmtTs(it.created_at)}</span>
-            </div>
-            {it.policy_reasons.length > 0 && (
-              <div className="qi-policy">
-                <b>Policy:</b> {it.policy_reasons.join(" + ")}
+        {items.map((it) => {
+          const open = expanded.has(it.request_id);
+          return (
+            <div className="queue-item" key={it.request_id}>
+              <div className="qi-head">
+                <span className="qi-case">{it.case_id}</span>
+                <span className="qi-client">{it.client} ({it.client_code})</span>
+                <span className="qi-amount">${it.amount_usd.toLocaleString()}</span>
               </div>
-            )}
-            {rejecting === it.request_id && (
-              <div className="qi-reason">
-                <input value={reason} onChange={(e) => setReason(e.target.value)}
-                  placeholder="Rejection reason (recorded in the audit trail)…" />
+              <div className="qi-meta">
+                <span>Requested by {it.requested_by} ({it.requested_emp_id})</span>
+                <span>· {fmtTs(it.created_at)}</span>
               </div>
-            )}
-            <div className="qi-actions">
-              <button className="btn-primary btn-green" disabled={busyId === it.request_id}
-                onClick={() => decide(it, "approve")}>
-                {busyId === it.request_id ? "Recording…" : "✔ Approve"}
-              </button>
-              <button className="btn-primary btn-red" disabled={busyId === it.request_id}
-                onClick={() => { setRejecting(rejecting === it.request_id ? null : it.request_id); setNote(null); }}>
-                ✖ Reject
-              </button>
-              <a className="btn-ghost" href={`/?run=${it.run_id}`} onClick={(e) => { e.preventDefault(); onOpenRun(it.run_id); }}>
-                👁 View run
-              </a>
+              {it.policy_reasons.length > 0 && (
+                <div className="qi-policy">
+                  <b>Policy:</b> {it.policy_reasons.join(" + ")}
+                </div>
+              )}
+              {/* Collapsible approval details — same content as the approval email */}
+              <div className="qi-toggle" onClick={() => toggleDetail(it.request_id)}>
+                <span>{open ? "▾" : "▸"}</span> Approval details
+                <span className="qi-toggle-hint">{open ? "hide" : "show case & governance context"}</span>
+              </div>
+              {open && (
+                <div className="qi-details">
+                  <div className="qd-section">
+                    <div className="qd-label">CASE SUMMARY</div>
+                    <div className="qd-kv"><span>Case ID</span><span>{it.case_id}</span></div>
+                    <div className="qd-kv"><span>Client</span><span>{it.client} ({it.client_code})</span></div>
+                    <div className="qd-kv"><span>Facility</span><span>{it.facility ?? "—"}</span></div>
+                    <div className="qd-kv"><span>Requested renewal</span><span>${it.amount_usd.toLocaleString()}</span></div>
+                    <div className="qd-kv"><span>Current utilization</span>
+                      <span>${(it.utilization_usd ?? 0).toLocaleString()} ({it.utilization_pct ?? "—"}% of ${(it.limit_usd ?? 0).toLocaleString()} limit)</span></div>
+                    <div className="qd-kv"><span>Risk rating</span><span>{it.risk_rating ?? "—"}</span></div>
+                    <div className="qd-kv"><span>Covenants</span><span>{it.covenant_status ?? "—"}</span></div>
+                    <div className="qd-kv"><span>KYC / sanctions</span>
+                      <span>KYC {it.kyc_status ?? "—"} ({it.kyc_detail ?? "—"}); sanctions {it.sanctions ?? "—"}</span></div>
+                  </div>
+                  <div className="qd-section">
+                    <div className="qd-label">WHY APPROVAL IS REQUIRED (POLICY)</div>
+                    <ul className="qd-policy-list">
+                      {(it.policy_reasons.length ? it.policy_reasons : ["No rule triggered — auto-approved by policy."])
+                        .map((r, i) => <li key={i}>{r}</li>)}
+                    </ul>
+                  </div>
+                  <div className="qd-section">
+                    <div className="qd-label">GOVERNANCE CONTEXT</div>
+                    <div className="qd-kv"><span>Requested by</span><span>Analyst (employee ID {it.requested_emp_id})</span></div>
+                    <div className="qd-kv"><span>Agent</span><span>{it.agent ?? "credit-memo-agent"}</span></div>
+                    <div className="qd-kv"><span>Governed MCP method</span>
+                      <span className="mono">{it.tool_host ?? "credit-memo-mcp/workflow__submit_credit_memo"}</span></div>
+                    <div className="qd-kv"><span>Reason</span>
+                      <span>Agent requires approval to invoke governed MCP method: {it.tool_host ?? "workflow__submit_credit_memo"}</span></div>
+                    <div className="qd-kv"><span>Approval request ID</span>
+                      <span className="mono">{it.request_id}</span></div>
+                    <div className="qd-kv"><span>Valid for</span><span>24 hours from issue</span></div>
+                  </div>
+                  <div className="qd-note">
+                    Approving publishes the memo to the official credit record and notifies the
+                    client. Rejecting closes the run with your reason logged in the audit trail.
+                  </div>
+                </div>
+              )}
+              {rejecting === it.request_id && (
+                <div className="qi-reason">
+                  <input value={reasons[it.request_id] ?? ""}
+                    onChange={(e) => setReasons((prev) => ({ ...prev, [it.request_id]: e.target.value }))}
+                    placeholder="Rejection reason (recorded in the audit trail)…" />
+                </div>
+              )}
+              <div className="qi-actions">
+                <button className="btn-primary btn-green" disabled={busyId === it.request_id}
+                  onClick={() => decide(it, "approve")}>
+                  {busyId === it.request_id ? "Recording…" : "✔ Approve"}
+                </button>
+                <button className="btn-primary btn-red" disabled={busyId === it.request_id}
+                  onClick={() => { setRejecting(rejecting === it.request_id ? null : it.request_id); setNote(null); }}>
+                  ✖ Reject
+                </button>
+                <button className="btn-ghost" onClick={() => onOpenRun(it.run_id)}>
+                  👁 View run
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
-        {note && <div className="banner ok">{note}</div>}
+          );
+        })}
+        {note && <div className={`banner ${note.kind === "ok" ? "ok" : "err"}`}>{note.text}</div>}
       </div>
     </>
   );
@@ -520,14 +625,17 @@ function ApproverConsole({ onOpenRun }: { onOpenRun: (runId: string) => void }) 
 
 function Header({ user, onLogout }: { user: User; onLogout: () => void }) {
   const initials = user.name.split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase();
+  const isOfficer = user.role === "Senior Credit Officer";
   return (
     <div className="header">
       <div className="brand"><span className="gear">⚙</span> Credit Risk Portal</div>
       <div className="userbox">
-        <a className="mail-btn" href={mailUrl()} target="_blank" rel="noreferrer"
-          title="Open the approval inbox (Mailpit) to view governance emails">
-          📧 Approval Inbox
-        </a>
+        {isOfficer && (
+          <a className="mail-btn" href={mailUrl()} target="_blank" rel="noreferrer"
+            title="Open the approval inbox (Mailpit) to view governance emails">
+            📧 Approval Inbox
+          </a>
+        )}
         <div className="avatar">{initials}</div>
         <div style={{ textAlign: "right" }}>
           <div>{user.name}</div>
