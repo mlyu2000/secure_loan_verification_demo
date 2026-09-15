@@ -147,14 +147,16 @@ secure_loan_verification_demo/
 │   ├── skills/          # bank-credit skill (agent → governed MCP)
 │   ├── e2e/             # 8-scenario end-to-end suite + cluster verify + demo-run
 │   ├── orchestrate/     # autonomous build/test/deploy loop (gates, loop)
-│   └── mockdata/        # the five bank-system fixtures (CRM, credit, txn, compliance, memo)
+│   ├── mockdata/        # the five bank-system fixtures (CRM, credit, txn, compliance, memo)
+│   ├── Makefile         # real entry point: test / build / deploy / verify / clean
+│   ├── Dockerfile       # engine + credit-memo-mcp shared image (context = repo root)
+│   ├── Dockerfile.portal# portal (Vite build + nginx)
+│   └── conftest.py      # pytest package resolution
 ├── charts/slvd/         # Helm chart + EzAppConfig (PCAI BYOA deploy)
 ├── slvd-0.9.1.tgz       # packaged helm chart (at repo root)
 ├── images/              # screenshots + architecture/business diagrams (html + png)
-├── Dockerfile           # engine + credit-memo-mcp shared image
-├── Dockerfile.portal    # portal (Vite build + nginx)
+├── Makefile             # thin wrapper — delegates to source_code/Makefile
 ├── requirements.txt
-└── Makefile             # single entry point: test / build / deploy / verify / clean
 ```
 
 ---
