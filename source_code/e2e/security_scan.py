@@ -13,7 +13,7 @@ import re
 import subprocess
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root
 
 # High-signal secret patterns (avoid false positives on keys like "apiKey" field names).
 SECRET_PATTERNS = [

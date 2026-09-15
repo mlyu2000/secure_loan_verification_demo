@@ -30,19 +30,19 @@ help:
 venv:
 	python3 -m venv venv
 	./venv/bin/pip install -q -r requirements.txt
-	cd portal && npm install --no-audit --no-fund
+	cd source_code/portal && npm install --no-audit --no-fund
 
 test-unit:
-	$(PY) -m pytest engine/tests/ mcp-server/tests/ -q
+	$(PY) -m pytest source_code/engine/tests/ source_code/mcp-server/tests/ -q
 
 test-e2e:
-	$(PY) e2e/run_e2e.py
+	$(PY) source_code/e2e/run_e2e.py
 
 test-security:
-	$(PY) e2e/security_scan.py
+	$(PY) source_code/e2e/security_scan.py
 
 build:
-	cd portal && npm run build
+	cd source_code/portal && npm run build
 
 build-images:
 	docker build -t $(IMG):$(VER) -f Dockerfile .
@@ -52,11 +52,11 @@ build-images:
 
 chart:
 	helm lint charts/slvd
-	helm package charts/slvd -d dist
-	helm push dist/slvd-$(VER).tgz http://127.0.0.1:18080
+	helm package charts/slvd -d .
+	helm push slvd-$(VER).tgz http://127.0.0.1:18080
 
 lint:
-	$(PY) -m ruff check engine mcp-server e2e orchestrate 2>/dev/null || true
+	$(PY) -m ruff check source_code/engine source_code/mcp-server source_code/e2e source_code/orchestrate 2>/dev/null || true
 	helm lint charts/slvd
 	helm template slvd charts/slvd > /dev/null
 
@@ -72,7 +72,7 @@ deploy:
 	$(K) wait --for=condition=ready pod -l app.kubernetes.io/part-of=slvd -n $(NS) --timeout=600s
 
 verify:
-	@./e2e/verify_cluster.sh
+	@./source_code/e2e/verify_cluster.sh
 
 clean:
 	$(K) delete ezappconfig -n ui -l app.kubernetes.io/part-of=slvd --ignore-not-found
@@ -81,4 +81,4 @@ clean:
 	@echo "cleaned ns $(NS) + slvd EzAppConfig"
 
 demo-run:
-	./e2e/demo_run.sh
+	./source_code/e2e/demo_run.sh

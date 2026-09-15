@@ -5,9 +5,9 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 COPY requirements.txt /app/requirements.txt
 RUN pip install -r /app/requirements.txt
-COPY engine /app/engine
-COPY mcp-server /app/mcp-server
-COPY mockdata /app/mockdata
+COPY source_code/engine /app/engine
+COPY source_code/mcp-server /app/mcp-server
+COPY source_code/mockdata /app/mockdata
 # engine entrypoint
 RUN printf '#!/bin/sh\nexec python -m engine.main\n' > /app/run-engine.sh \
     && printf '#!/bin/sh\ncd /app/mcp-server && exec python -m uvicorn server:app --host 0.0.0.0 --port 8000\n' > /app/run-mcp.sh \

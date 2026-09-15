@@ -24,8 +24,10 @@ import time
 import urllib.error
 import urllib.request
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT)
+SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # source_code/
+REPO_ROOT = os.path.dirname(SRC_ROOT)                                     # repo root
+sys.path.insert(0, REPO_ROOT)
+sys.path.insert(0, SRC_ROOT)
 
 HOST = os.environ.get("SLVD_HOST", "slvd.aie.cs1.ctc.sg.lab")
 MAIL_HOST = os.environ.get("SLVD_MAIL_HOST", "slvd-mail.aie.cs1.ctc.sg.lab")

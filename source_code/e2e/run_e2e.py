@@ -16,9 +16,11 @@ import time
 import urllib.request
 import urllib.error
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT)
-sys.path.insert(0, os.path.join(ROOT, "mcp-server"))
+SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # source_code/
+REPO_ROOT = os.path.dirname(SRC_ROOT)                                     # repo root
+sys.path.insert(0, REPO_ROOT)
+sys.path.insert(0, SRC_ROOT)
+sys.path.insert(0, os.path.join(SRC_ROOT, "mcp-server"))
 
 import uvicorn  # noqa: E402
 
@@ -307,7 +309,7 @@ def s7_agent_failure(sink, results, label):
     import engine.workflow as wf
     from engine.security import Identity
     ident = Identity("nick", "Nick Johnson", "Risk Analyst", "E102938")
-    with open(os.path.join(ROOT, "mockdata", "cases.json")) as f:
+    with open(os.path.join(SRC_ROOT, "mockdata", "cases.json")) as f:
         case = json.load(f)["cases"]["CR-2026-00451"]
     orig = cfg.settings.mcp_base_url
     cfg.settings.mcp_base_url = "http://127.0.0.1:1"  # dead

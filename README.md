@@ -20,8 +20,8 @@ Both diagrams below are interactive HTML + static PNG:
 
 | Diagram | Static | Interactive |
 |---|---|---|
-| Business perspective | [`docs/slvd-business-perspective.png`](docs/slvd-business-perspective.png) | [`docs/slvd-business-perspective.html`](docs/slvd-business-perspective.html) |
-| Technical architecture | [`docs/slvd-technical-architecture.png`](docs/slvd-technical-architecture.png) | [`docs/slvd-technical-architecture.html`](docs/slvd-technical-architecture.html) |
+| Business perspective | [`images/slvd-business-perspective.png`](images/slvd-business-perspective.png) | [`images/slvd-business-perspective.html`](images/slvd-business-perspective.html) |
+| Technical architecture | [`images/slvd-technical-architecture.png`](images/slvd-technical-architecture.png) | [`images/slvd-technical-architecture.html`](images/slvd-technical-architecture.html) |
 
 ---
 
@@ -42,7 +42,7 @@ analyst (Nick) starts the case. From there:
 7. **Memo is published** to the official credit record.
 8. **Client is notified** by email with the outcome.
 
-![Business perspective](docs/slvd-business-perspective.png)
+![Business perspective](images/slvd-business-perspective.png)
 
 ### Who does what
 
@@ -73,7 +73,7 @@ analyst (Nick) starts the case. From there:
 The system runs on **HPE Private Cloud AI (CS1)** as four pods in the `slvd` Kubernetes
 namespace, with the AI agent in `nemoclaw` and the LLM in `project-user-aieadmin`.
 
-![Technical architecture](docs/slvd-technical-architecture.png)
+![Technical architecture](images/slvd-technical-architecture.png)
 
 **Core components (ns `slvd`):**
 
@@ -135,22 +135,26 @@ The agent calls all five read tools (safe), drafts the memo, then calls the gate
 
 ```
 secure_loan_verification_demo/
-├── engine/          # FastAPI workflow engine (pipeline, policy, audit, mailer, API)
-│   ├── api.py       # REST endpoints (runs, approvals, audit, memo)
-│   ├── workflow.py  # the 10-step governed pipeline
-│   ├── policy.py    # amount >= $5M OR KYC pending rule
-│   ├── mcp / agent / mailer / store / security / memo
-│   └── tests/       # unit tests
-├── mcp-server/      # credit-memo-mcp (governed data tools + gated submit)
-├── portal/          # React + TS frontend (analyst UI, approver console, mail)
-├── skills/          # bank-credit skill (agent → governed MCP)
-├── charts/slvd/     # Helm chart + EzAppConfig (PCAI BYOA deploy)
-├── e2e/             # 8-scenario end-to-end suite + cluster verify + demo-run
-├── orchestrate/     # autonomous build/test/deploy loop (gates, loop)
-├── mockdata/        # the five bank-system fixtures (CRM, credit, txn, compliance, memo)
-├── docs/            # architecture + business diagrams (html + png)
+├── source_code/         # all demo code
+│   ├── engine/          # FastAPI workflow engine (pipeline, policy, audit, mailer, API)
+│   │   ├── api.py       # REST endpoints (runs, approvals, audit, memo)
+│   │   ├── workflow.py  # the 10-step governed pipeline
+│   │   ├── policy.py    # amount >= $5M OR KYC pending rule
+│   │   ├── mcp / agent / mailer / store / security / memo
+│   │   └── tests/       # unit tests
+│   ├── mcp-server/      # credit-memo-mcp (governed data tools + gated submit)
+│   ├── portal/          # React + TS frontend (analyst UI, approver console, mail)
+│   ├── skills/          # bank-credit skill (agent → governed MCP)
+│   ├── e2e/             # 8-scenario end-to-end suite + cluster verify + demo-run
+│   ├── orchestrate/     # autonomous build/test/deploy loop (gates, loop)
+│   └── mockdata/        # the five bank-system fixtures (CRM, credit, txn, compliance, memo)
+├── charts/slvd/         # Helm chart + EzAppConfig (PCAI BYOA deploy)
+├── slvd-0.9.1.tgz       # packaged helm chart (at repo root)
+├── images/              # screenshots + architecture/business diagrams (html + png)
+├── Dockerfile           # engine + credit-memo-mcp shared image
+├── Dockerfile.portal    # portal (Vite build + nginx)
 ├── requirements.txt
-└── Makefile         # single entry point: test / build / deploy / verify / clean
+└── Makefile             # single entry point: test / build / deploy / verify / clean
 ```
 
 ---
@@ -160,7 +164,7 @@ secure_loan_verification_demo/
 ```bash
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cd portal && npm install && npm run build && cd ..
+cd source_code/portal && npm install && npm run build && cd ../..
 
 make test-unit      # engine + mcp unit tests (21)
 make test-e2e       # 8 local simulation scenarios (S1–S8)

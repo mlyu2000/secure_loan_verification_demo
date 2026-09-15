@@ -14,14 +14,13 @@ __pycache__/
 
 # node
 node_modules/
-dist/
-portal/dist/
+source_code/portal/dist/
 
 # artifacts
 logs/
 frames/
 video/
-dist/*.tgz
+*.tgz
 
 # editor
 .DS_Store

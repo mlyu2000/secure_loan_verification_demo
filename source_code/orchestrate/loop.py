@@ -24,8 +24,8 @@ import sys
 import time
 from datetime import datetime, timezone
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ORCH = os.path.join(ROOT, "orchestrate")
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root
+ORCH = os.path.join(ROOT, "source_code", "orchestrate")
 STATE_F = os.path.join(ORCH, "state.json")
 DEFECTS_F = os.path.join(ORCH, "defects.jsonl")
 LOG_F = os.path.join(ORCH, "iteration_log.md")
@@ -185,14 +185,14 @@ def phase_fix(state: dict) -> tuple[bool, str]:
     prompt += "\n\n## Context\nRecent iteration log tail:\n"
     prompt += open(LOG_F).read()[-4000:]
     out = hermes_worker(prompt)
-    ok, t = run_cmd([PY, "-m", "pytest", "engine/tests/", "mcp-server/tests/", "-q"], timeout=300)
+    ok, t = run_cmd([PY, "-m", "pytest", "source_code/engine/tests/", "source_code/mcp-server/tests/", "-q"], timeout=300)
     tail = out[-1500:] + "\n[unit] " + t[-800:]
     if "WORKER_TIMEOUT" in out:
         return False, "fix worker timed out\n" + tail
     log(f"fix worker output tail: {out[-400:]}")
     # re-run the scenario suite if e2e was among defects
     if any(d["phase"] in ("e2e", "cluster", "golden", "unit") for d in p01):
-        ok2, t2 = run_cmd([PY, "e2e/run_e2e.py"], timeout=PHASE_CAP_S)
+        ok2, t2 = run_cmd([PY, "source_code/e2e/run_e2e.py"], timeout=PHASE_CAP_S)
         tail += "\n[e2e] " + t2[-800:]
         ok = ok and ok2
     return ok, tail
@@ -204,7 +204,7 @@ def phase_build(state: dict) -> tuple[bool, str]:
 
 
 def phase_unit(state: dict) -> tuple[bool, str]:
-    ok, out = run_cmd([PY, "-m", "pytest", "engine/tests/", "mcp-server/tests/", "-q"], timeout=300)
+    ok, out = run_cmd([PY, "-m", "pytest", "source_code/engine/tests/", "source_code/mcp-server/tests/", "-q"], timeout=300)
     return ok == 0, out
 
 
@@ -217,7 +217,7 @@ def phase_review(state: dict) -> tuple[bool, str]:
     ok, out = run_cmd(["helm", "template", "slvd", os.path.join(ROOT, "charts", "slvd")], timeout=120)
     if ok != 0:
         findings.append(f"helm template failed: {out[-500:]}")
-    ok, out = run_cmd([PY, os.path.join(ROOT, "e2e", "security_scan.py")], timeout=300)
+    ok, out = run_cmd([PY, os.path.join(ROOT, "source_code", "e2e", "security_scan.py")], timeout=300)
     if ok != 0:
         findings.append(f"security scan: {out[-1000:]}")
     # LLM review of the diff since last review (only if code changed)
@@ -252,7 +252,7 @@ def phase_review(state: dict) -> tuple[bool, str]:
 
 
 def phase_e2e(state: dict) -> tuple[bool, str]:
-    ok, out = run_cmd([PY, "e2e/run_e2e.py"], timeout=PHASE_CAP_S)
+    ok, out = run_cmd([PY, "source_code/e2e/run_e2e.py"], timeout=PHASE_CAP_S)
     return ok, out
 
 
@@ -314,11 +314,11 @@ def phase_deploy(state: dict) -> tuple[bool, str]:
         pf.terminate()
         return False, f"helm lint: {out[-500:]}"
     ok, out = run_cmd(["helm", "package", os.path.join(ROOT, "charts", "slvd"),
-                       "-d", os.path.join(ROOT, "dist")], timeout=120)
+                       "-d", ROOT], timeout=120)
     if ok != 0:
         pf.terminate()
         return False, f"helm package: {out[-500:]}"
-    ok, out = run_cmd(["helm", "push", f"dist/slvd-{ver}.tgz", "http://127.0.0.1:18080"], timeout=120)
+    ok, out = run_cmd(["helm", "push", f"slvd-{ver}.tgz", "http://127.0.0.1:18080"], timeout=120)
     pf.terminate()
     if ok != 0:
         return False, f"chartmuseum push: {out[-800:]}"
@@ -354,8 +354,8 @@ def phase_cluster(state: dict) -> tuple[bool, str]:
     run_cmd(["kubectl", "--kubeconfig", os.environ.get("KUBECONFIG",
             "/home/ml/projects/kubeconfig-cs1.conf"), "rollout", "status",
             "deploy/engine", "-n", "slvd", "--timeout=180s"], timeout=240)
-    ok, out = run_cmd(["bash", os.path.join(ROOT, "e2e", "verify_cluster.sh")], timeout=PHASE_CAP_S)
-    ok2, out2 = run_cmd(["bash", os.path.join(ROOT, "e2e", "demo_run.sh")], timeout=PHASE_CAP_S)
+    ok, out = run_cmd(["bash", os.path.join(ROOT, "source_code", "e2e", "verify_cluster.sh")], timeout=PHASE_CAP_S)
+    ok2, out2 = run_cmd(["bash", os.path.join(ROOT, "source_code", "e2e", "demo_run.sh")], timeout=PHASE_CAP_S)
     detail = out[-1500:] + "\n[demo_run] " + out2[-1500:]
     # restore production mode
     run_cmd(["kubectl", "--kubeconfig", os.environ.get("KUBECONFIG",
@@ -370,13 +370,13 @@ def phase_golden(state: dict) -> tuple[bool, str]:
     run_cmd(["kubectl", "--kubeconfig", os.environ.get("KUBECONFIG",
             "/home/ml/projects/kubeconfig-cs1.conf"), "rollout", "status",
             "deploy/engine", "-n", "slvd", "--timeout=180s"], timeout=240)
-    ok, out = run_cmd([PY, os.path.join(ROOT, "e2e", "golden_run.py")], timeout=PHASE_CAP_S)
+    ok, out = run_cmd([PY, os.path.join(ROOT, "source_code", "e2e", "golden_run.py")], timeout=PHASE_CAP_S)
     return ok == 0, out
 
 
 def phase_final(state: dict) -> tuple[bool, str]:
-    ok1, out1 = run_cmd([PY, os.path.join(ROOT, "e2e", "security_scan.py")], timeout=300)
-    ok2, out2 = run_cmd([PY, os.path.join(ROOT, "e2e", "visual_parity.py")], timeout=300)
+    ok1, out1 = run_cmd([PY, os.path.join(ROOT, "source_code", "e2e", "security_scan.py")], timeout=300)
+    ok2, out2 = run_cmd([PY, os.path.join(ROOT, "source_code", "e2e", "visual_parity.py")], timeout=300)
     detail = out1[-800:] + "\n[parity] " + out2[-1500:]
     return (ok1 == 0 and ok2 == 0), detail
 
@@ -460,7 +460,7 @@ def run_iteration(state: dict, cluster_ok: bool) -> str:
             log("reproducibility check: make clean && deploy")
             ok, out = run_cmd(["make", "clean", "KUBE=" + os.environ.get("KUBECONFIG",
                                    "/home/ml/projects/kubeconfig-cs1.conf")], timeout=600)
-            ok2, out2 = run_cmd(["bash", os.path.join(ROOT, "e2e", "verify_cluster.sh")],
+            ok2, out2 = run_cmd(["bash", os.path.join(ROOT, "source_code", "e2e", "verify_cluster.sh")],
                                 timeout=PHASE_CAP_S)
             if ok != 0 or ok2 != 0:
                 defect_add("P1", "repro", "clean redeploy failed", out[-500:] + out2[-500:])
@@ -536,7 +536,7 @@ def start_detached() -> None:
             pass
     # detach: new session, no stdin
     p = subprocess.Popen([sys.executable, os.path.join(ORCH, "loop.py", "_run"),
-                         os.path.join(ROOT, "orchestrate")],
+                         os.path.join(ROOT, "source_code", "orchestrate")],
                          stdout=open(LOG_F, "a"), stderr=subprocess.STDOUT,
                          stdin=subprocess.DEVNULL, start_new_session=True, cwd=ROOT)
     with open(PID_F, "w") as f:

@@ -75,7 +75,7 @@ class Guard:
         return verb or "", resource or "", name or "", ns or "", files
 
 
-ROOT_FOR_FILES = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT_FOR_FILES = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root
 
 
 def _norm_resource(res: str) -> str:
