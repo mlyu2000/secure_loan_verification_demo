@@ -282,16 +282,29 @@ def draft_memo(case: dict, data: dict, requested_amount_usd: int,
         return draft_stub(case, requested_amount_usd)
     if backend == "direct_llm":
         try:
-            return draft_llm(case, data, requested_amount_usd)
+            res = draft_llm(case, data, requested_amount_usd)
         except Exception as e:  # noqa: BLE001
             log.error("direct_llm failed: %s — falling back to stub", e)
             return AgentResult(build_stub_memo(case, requested_amount_usd), True,
                                f"llm-error-fallback-stub:{type(e).__name__}")
+        if not res.ok:
+            # LLM produced a memo that failed field validation (not an exception) —
+            # degrade gracefully to a valid deterministic memo so the run can complete,
+            # and report it honestly in the audit.
+            log.warning("direct_llm validation failed (%s) — falling back to stub", res.notes)
+            return AgentResult(build_stub_memo(case, requested_amount_usd), True,
+                               f"llm-validation-fallback-stub:{res.notes[:40]}")
+        return res
     if backend == "openclaw":
         try:
-            return draft_openclaw(case, data, requested_amount_usd, identity)
+            res = draft_openclaw(case, data, requested_amount_usd, identity)
         except Exception as e:  # noqa: BLE001
             log.error("openclaw backend failed: %s — falling back to stub", e)
             return AgentResult(build_stub_memo(case, requested_amount_usd), True,
                                f"openclaw-error-fallback-stub:{type(e).__name__}")
+        if not res.ok:
+            log.warning("openclaw validation failed (%s) — falling back to stub", res.notes)
+            return AgentResult(build_stub_memo(case, requested_amount_usd), True,
+                               f"openclaw-validation-fallback-stub:{res.notes[:40]}")
+        return res
     raise ValueError(f"unknown agent backend: {backend}")

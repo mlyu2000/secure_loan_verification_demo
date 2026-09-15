@@ -18,6 +18,22 @@ export interface AuditEntry {
   actor: string;
   action: string;
   detail: string;
+  reason?: string;
+  meta?: Record<string, unknown>;
+}
+
+export interface ApprovalItem {
+  request_id: string;
+  run_id: string;
+  case_id: string;
+  client: string;
+  client_code: string;
+  amount_usd: number;
+  requested_by: string;
+  requested_emp_id: string;
+  created_at: string;
+  expires_at: string;
+  policy_reasons: string[];
 }
 
 export interface ApprovalRequest {
@@ -42,6 +58,8 @@ export interface Run {
   approved_by: string | null;
   approval_role: string | null;
   fail_reason: string | null;
+  memo_draft_path?: string | null;
+  memo_official_path?: string | null;
 }
 
 export interface RunSnapshot {
@@ -129,6 +147,18 @@ export async function resubmit(requestId: string): Promise<{ request_id: string;
 
 export async function getApproval(requestId: string): Promise<ApprovalRequest> {
   return jfetch(`/api/approvals/${requestId}`);
+}
+
+export async function getPendingApprovals(): Promise<{ items: ApprovalItem[] }> {
+  return jfetch("/api/approvals/pending");
+}
+
+export async function decideApproval(requestId: string, decision: "approve" | "reject",
+                                     reason: string): Promise<{ request_id: string; status: string; run_id?: string }> {
+  return jfetch(`/api/approvals/${requestId}/decide`, {
+    method: "POST",
+    body: JSON.stringify({ decision, reason }),
+  });
 }
 
 export async function chat(message: string): Promise<{ reply: string }> {

@@ -147,6 +147,78 @@ def get_audit(run_id: str, request: Request):
 
 # ---------- approvals ----------
 
+class DecideIn(BaseModel):
+    decision: str
+    reason: str = ""
+
+
+def _pending_approval_items() -> list[dict]:
+    """All pending approval requests, enriched with case + policy context."""
+    from .policy import evaluate
+    from .workflow import _load_case
+    items = []
+    for run in store.list_runs(limit=200):
+        if run["status"] != "AWAITING_APPROVAL":
+            continue
+        req = store.request_for_run(run["run_id"])
+        if req is None or req["status"] != "pending":
+            continue
+        case = _load_case(run["case_id"]) or {}
+        policy = evaluate(run["amount_usd"],
+                          (case.get("compliance") or {}).get("kyc_status", "clear"))
+        items.append({
+            "request_id": req["request_id"],
+            "run_id": run["run_id"],
+            "case_id": run["case_id"],
+            "client": case.get("client", "—"),
+            "client_code": case.get("client_code", "—"),
+            "amount_usd": run["amount_usd"],
+            "requested_by": run["requested_by"],
+            "requested_emp_id": run["requested_emp_id"],
+            "created_at": req["created_at"],
+            "expires_at": req["expires_at"],
+            "policy_reasons": policy.reasons,
+        })
+    items.sort(key=lambda x: x["created_at"])
+    return items
+
+
+@app.get("/api/approvals/pending")
+def pending_approvals(request: Request):
+    """Approval queue for the approver console (Senior Credit Officer)."""
+    identity = _auth(request)
+    if identity.role != "Senior Credit Officer":
+        raise HTTPException(403, "only a Senior Credit Officer can access the approval queue")
+    return {"items": _pending_approval_items()}
+
+
+@app.post("/api/approvals/{request_id}/decide")
+def decide_via_portal(request_id: str, body: DecideIn, request: Request):
+    """Portal console decision (authenticated officer identity), equivalent to the
+    signed email link but recorded with the officer's JWT identity."""
+    identity = _auth(request)
+    if identity.role != "Senior Credit Officer":
+        raise HTTPException(403, "only a Senior Credit Officer can record a decision here")
+    if body.decision not in ("approve", "reject"):
+        raise HTTPException(400, "decision must be 'approve' or 'reject'")
+    req = store.get_approval_request(request_id)
+    if req is None:
+        raise HTTPException(404, "unknown request")
+    if req["status"] != "pending":
+        return {"request_id": request_id, "status": req["status"],
+                "decision": req["decision"], "note": "already recorded (idempotent)"}
+    result = store.record_decision(request_id, body.decision, 8,
+                                   f"{identity.name} ({identity.employee_id})",
+                                   via="portal console", reason=body.reason.strip())
+    if result == "recorded":
+        # The workflow's _wait_for_decision detects the recorded decision and writes
+        # the canonical "Decision recorded (…)" audit entry (with "via portal console"),
+        # so we do not add a duplicate line here.
+        return {"request_id": request_id, "status": body.decision,
+                "run_id": req["run_id"]}
+    raise HTTPException(500, "failed to record decision")
+
+
 @app.get("/api/approvals/{request_id}")
 def get_approval(request_id: str, request: Request):
     _auth(request)
@@ -234,12 +306,9 @@ def internal_mcp_call(call: dict, x_internal_token: str = Query(default="", alia
     from .config import settings as _s
     if _s.mcp_internal_token and x_internal_token != _s.mcp_internal_token:
         raise HTTPException(403, "bad internal token")
-    log_call = call
-    run_id = _run_for_case(log_call.get("case_id", ""))
-    if run_id:
-        store.add_audit(run_id, "credit-memo-mcp", "Tool call",
-                        f"{log_call.get('tool')}({log_call.get('case_id')}) by "
-                        f"{log_call.get('user')} ok={log_call.get('ok')}")
+    # The engine's workflow already records a richer per-tool audit entry (result data,
+    # authorized identity, latency) for each governed call, so we do not add a duplicate
+    # "Tool call" line here. The webhook still serves as the MCP -> engine liveness path.
     return {"ok": True}
 
 

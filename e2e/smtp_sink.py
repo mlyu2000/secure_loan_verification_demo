@@ -70,14 +70,13 @@ class SmtpSink:
                         if line == ".":
                             in_data = False
                             body = data_buf
-                            mail = CapturedMail(_decode_header(mail_from),
-                                                 _decode_header("; ".join(rcpt)),
-                                                 _subject(body), body)
-                            self.mails.append(mail)
+                            self.mails.append(_make_mail(mail_from, rcpt, body))
                             data_buf = ""
                             conn.sendall(b"250 OK queued\r\n")
                         else:
-                            data_buf += line + "\n"
+                            # RFC5321 dot-stuffing: a leading "." is literal data
+                            # (base64 content frequently produces such lines).
+                            data_buf += (line[1:] if line.startswith(".") else line) + "\n"
                         continue
                     up = line.upper()
                     if up.startswith("EHLO") or up.startswith("HELO"):
@@ -128,3 +127,41 @@ def _subject(body: str) -> str:
         if line.lower().startswith("subject:"):
             return _decode_header(line.split(":", 1)[1].strip())
     return ""
+
+
+def _make_mail(mail_from: str, rcpt: list[str], raw: str) -> CapturedMail:
+    """Decode the captured RFC822 message into a CapturedMail whose `body` is the
+    readable (plain + html) text and `subject` is the full (possibly wrapped) header.
+    Mirrors what a mail client presents, so e2e checks can search readable content."""
+    from email import message_from_string
+    try:
+        msg = message_from_string(raw)
+    except Exception:  # noqa: BLE001
+        return CapturedMail(_decode_header(mail_from), _decode_header("; ".join(rcpt)),
+                            _subject(raw), raw)
+    subject = str(msg.get("Subject", "") or "")
+    decoded_subject = _decode_header(subject)
+
+    def _part_text(part) -> str:
+        payload: bytes | None
+        try:
+            payload = part.get_payload(decode=True)
+        except Exception:  # noqa: BLE001
+            payload = None
+        if payload is None:
+            raw_payload = part.get_payload()
+            payload = raw_payload.encode() if isinstance(raw_payload, str) else b""
+        enc = part.get_content_charset() or "utf-8"
+        return payload.decode(enc, "replace")
+
+    parts: list[str] = []
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_maintype() == "multipart":
+                continue
+            if part.get_content_type() in ("text/plain", "text/html"):
+                parts.append(_part_text(part))
+    else:
+        parts.append(_part_text(msg))
+    return CapturedMail(_decode_header(mail_from), _decode_header("; ".join(rcpt)),
+                        decoded_subject, "\n".join(parts))

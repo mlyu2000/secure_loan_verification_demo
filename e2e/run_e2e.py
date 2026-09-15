@@ -134,14 +134,15 @@ def _wait_status(run_id: str, token: str, wanted: set, timeout: int = 30) -> dic
 
 def mail_for_request(sink: SmtpSink, request_id: str) -> dict | None:
     for m in sink.mails:
-        if m.subject.startswith("[Agent Platform] Access Request") and request_id in m.body:
+        if ("[ACTION REQUIRED]" in m.subject or "[Agent Platform] Access Request" in m.subject) \
+                and request_id in m.body:
             return {"subject": m.subject, "body": m.body, "to": m.to, "from": m.from_}
     return None
 
 
 def client_mail(sink: SmtpSink) -> dict | None:
     for m in sink.mails:
-        if "Loan Application Approved" in m.subject:
+        if "Loan Application Approved" in m.subject or "Loan Renewal Approved" in m.subject:
             return {"subject": m.subject, "body": m.body}
     return None
 
@@ -173,10 +174,10 @@ def s1_happy(sink, results, label):
     time.sleep(0.5)
     mail = mail_for_request(sink, req_id)
     assert mail, f"S1: no approval email for {req_id}"
-    for needle in ["Request ID", "E102938", "credit-memo-agent",
+    for needle in ["Approval request ID", "E102938", "credit-memo-agent",
                    "credit-memo-mcp/workflow__submit_credit_memo",
-                   "workflow__submit_credit_memo", "Approve (8 h)", "Reject",
-                   "View in Admin Dashboard", "Links expire in 24 hours"]:
+                   "workflow__submit_credit_memo", "Approve", "Reject",
+                   "Credit Risk Portal", "24 hours", "WHY APPROVAL IS REQUIRED"]:
         assert needle in mail["body"], f"S1: approval mail missing {needle!r}"
     assert mail["to"] == "Sarah.Chen@mybank.com", f"S1: mail to {mail['to']}"
     link = extract_link(mail["body"], "approve", 8)

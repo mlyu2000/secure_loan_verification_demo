@@ -92,7 +92,9 @@ def init_db() -> None:
                 ts TEXT NOT NULL,
                 actor TEXT NOT NULL,
                 action TEXT NOT NULL,
-                detail TEXT
+                detail TEXT,
+                reason TEXT,
+                meta TEXT
             );
             CREATE TABLE IF NOT EXISTS approval_requests (
                 request_id TEXT PRIMARY KEY,
@@ -103,11 +105,29 @@ def init_db() -> None:
                 decision TEXT,
                 ttl_hours INTEGER,
                 decided_by TEXT,
-                decided_at TEXT
+                decided_at TEXT,
+                via TEXT,
+                reason TEXT
             );
             """
         )
         c.commit()
+        _ensure_audit_columns(c)
+
+
+def _ensure_audit_columns(c: sqlite3.Connection) -> None:
+    """Idempotent migration for pre-existing databases (append-only columns)."""
+    cols = {r[1] for r in c.execute("PRAGMA table_info(audit)")}
+    if "reason" not in cols:
+        c.execute("ALTER TABLE audit ADD COLUMN reason TEXT")
+    if "meta" not in cols:
+        c.execute("ALTER TABLE audit ADD COLUMN meta TEXT")
+    acols = {r[1] for r in c.execute("PRAGMA table_info(approval_requests)")}
+    if "via" not in acols:
+        c.execute("ALTER TABLE approval_requests ADD COLUMN via TEXT")
+    if "reason" not in acols:
+        c.execute("ALTER TABLE approval_requests ADD COLUMN reason TEXT")
+    c.commit()
 
 
 def reset_for_tests() -> None:
@@ -126,8 +146,20 @@ def reset_for_tests() -> None:
 def create_run(case_id: str, requested_by: str, emp_id: str, amount_usd: int) -> str:
     c = _conn()
     with _db_lock:
-        n = c.execute("SELECT COUNT(*) AS n FROM runs").fetchone()["n"]
-        run_id = f"RUN-{(int(n) + 1 + (int(time.time()) % 100000) // 7919):05d}"
+        # Monotonic, collision-safe id: derive the next number from the max existing
+        # suffix. (The previous count+wallclock formula produced duplicate ids once the
+        # time offset rolled over on a persistent data dir -> UNIQUE constraint errors.)
+        row = c.execute("SELECT MAX(CAST(SUBSTR(run_id, 5) AS INTEGER)) AS m FROM runs").fetchone()
+        base = (row["m"] or 0) + 1
+        run_id = None
+        for _ in range(10000):
+            cand = f"RUN-{base:05d}"
+            if c.execute("SELECT 1 FROM runs WHERE run_id=?", (cand,)).fetchone() is None:
+                run_id = cand
+                break
+            base += 1
+        if run_id is None:  # effectively impossible; fall back to a unique suffix
+            run_id = "RUN-" + uuid.uuid4().hex[:5].upper()
         c.execute(
             "INSERT INTO runs (run_id, case_id, status, requested_by, requested_emp_id,"
             " amount_usd, started_at) VALUES (?,?,?,?,?,?,?)",
@@ -218,21 +250,35 @@ def _advance_states_locked(c: sqlite3.Connection, run_id: str) -> None:
 
 # ---------- audit (append-only) ----------
 
-def add_audit(run_id: str, actor: str, action: str, detail: str = "") -> None:
+def add_audit(run_id: str, actor: str, action: str, detail: str = "",
+              reason: str = "", meta: dict | None = None) -> None:
     c = _conn()
     with _db_lock:
-        c.execute("INSERT INTO audit (run_id, ts, actor, action, detail) VALUES (?,?,?,?,?)",
-                  (run_id, _now(), actor, action, detail))
+        c.execute("INSERT INTO audit (run_id, ts, actor, action, detail, reason, meta) "
+                  "VALUES (?,?,?,?,?,?,?)",
+                  (run_id, _now(), actor, action, detail, reason or None,
+                   json.dumps(meta) if meta else None))
         c.commit()
-    publish(run_id, {"type": "audit", "actor": actor, "action": action, "detail": detail})
+    publish(run_id, {"type": "audit", "actor": actor, "action": action,
+                     "detail": detail, "reason": reason,
+                     "meta": meta or {}})
 
 
 def get_audit(run_id: str) -> list[dict]:
     c = _conn()
     with _db_lock:
         rows = c.execute(
-            "SELECT ts, actor, action, detail FROM audit WHERE run_id=? ORDER BY rowid", (run_id,)).fetchall()
-    return [dict(r) for r in rows]
+            "SELECT ts, actor, action, detail, reason, meta FROM audit "
+            "WHERE run_id=? ORDER BY rowid", (run_id,)).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["meta"] = json.loads(d["meta"]) if d.get("meta") else {}
+        except (TypeError, ValueError):
+            d["meta"] = {}
+        out.append(d)
+    return out
 
 
 # ---------- approval requests ----------
@@ -266,7 +312,8 @@ def request_for_run(run_id: str) -> dict | None:
     return dict(rows[0]) if rows else None
 
 
-def record_decision(request_id: str, decision: str, ttl_hours: int, decided_by: str) -> str:
+def record_decision(request_id: str, decision: str, ttl_hours: int, decided_by: str,
+                    via: str = "signed email link", reason: str = "") -> str:
     """Single-use: only the first decision is recorded; repeats return the existing."""
     status = "approved" if decision == "approve" else "rejected"
     c = _conn()
@@ -279,8 +326,9 @@ def record_decision(request_id: str, decision: str, ttl_hours: int, decided_by: 
             return "already_recorded"
         c.execute(
             "UPDATE approval_requests SET status=?, decision=?, ttl_hours=?, decided_by=?,"
-            " decided_at=?, expires_at=? WHERE request_id=?",
-            (status, decision, ttl_hours, decided_by, _now(), time.time() + ttl_hours * 3600, request_id))
+            " decided_at=?, expires_at=?, via=?, reason=? WHERE request_id=?",
+            (status, decision, ttl_hours, decided_by, _now(), time.time() + ttl_hours * 3600,
+             via, reason or None, request_id))
         c.commit()
     return "recorded"
 

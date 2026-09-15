@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import MemoBody from "./MemoBody";
 import {
-  chat, getApproval, getMemo, getUser, login, logout, pollRun, resubmit, startRun,
-  type RunSnapshot, type User,
+  chat, decideApproval, getApproval, getMemo, getPendingApprovals, getUser, login, logout,
+  pollRun, resubmit, startRun,
+  type ApprovalItem, type RunSnapshot, type User,
 } from "./api";
 
 const CASES = [
@@ -19,6 +20,94 @@ const MAIL_HOST = (window.location.hostname || "").startsWith("localhost") || (w
   : "https://slvd-mail.aie.cs1.ctc.sg.lab";
 function mailUrl(): string {
   return MAIL_HOST + "/";
+}
+
+// ---------- architecture (who does what) ----------
+
+const ACTORS = [
+  { icon: "👤", name: "Analyst", sub: "you — requests the memo", color: "#1e40af" },
+  { icon: "🖥", name: "Portal", sub: "authenticates + tracks the run", color: "#0f766e" },
+  { icon: "⚙", name: "Workflow Engine", sub: "orchestrates + policy gate", color: "#7c3aed" },
+  { icon: "🤖", name: "credit-memo-agent", sub: "LLM drafts the memo", color: "#db2777" },
+  { icon: "🗄", name: "credit-memo-mcp", sub: "governed tools → bank systems", color: "#b45309" },
+];
+
+const STEP_META: Record<number, { actor: string; why: string }> = {
+  1: { actor: "🔐 Identity", why: "proves who is requesting (JWT) before any governed data is accessed" },
+  2: { actor: "🗂 Case", why: "resolves the case ID to the canonical case record the agent works on" },
+  3: { actor: "🗄 MCP · CRM", why: "governed tool get_crm_profile — relationship context (industry, tenure, ownership)" },
+  4: { actor: "🗄 MCP · Credit", why: "governed tool get_credit_exposure — limits, utilization, risk rating" },
+  5: { actor: "🗄 MCP · Transactions", why: "governed tool get_transactions — repayment-behavior evidence" },
+  6: { actor: "🗄 MCP · Compliance", why: "governed tool get_compliance_status — KYC / sanctions the policy needs" },
+  7: { actor: "🗄 MCP · Prior Memos", why: "governed tool get_prior_memo — prior conditions + open follow-ups" },
+  8: { actor: "🤖 LLM Agent", why: "credit-memo-agent (LLM) drafts the memo from the five data payloads" },
+  9: { actor: "🛡 Policy", why: "policy engine checks amount threshold + KYC — governs publication" },
+  10: { actor: "✉ Human", why: "a Senior Credit Officer signs off (signed email link or this portal)" },
+};
+
+function ArchitectureStrip() {
+  return (
+    <div className="card arch">
+      <h2>How this run is governed</h2>
+      <div className="arch-flow">
+        {ACTORS.map((a, i) => (
+          <React.Fragment key={a.name}>
+            <div className="arch-node" style={{ borderColor: a.color }}>
+              <div className="arch-icon">{a.icon}</div>
+              <div className="arch-name" style={{ color: a.color }}>{a.name}</div>
+              <div className="arch-sub">{a.sub}</div>
+            </div>
+            {i < ACTORS.length - 1 && <div className="arch-arrow">→</div>}
+          </React.Fragment>
+        ))}
+      </div>
+      <div className="arch-note">
+        The analyst's request flows through the <b>workflow engine</b>, which drives the
+        <b> LLM agent</b> (the memo writer) and the <b>governed MCP tools</b> (every bank-system
+        read is identity-checked and audit-logged). The <b>policy gate</b> can pause the run until a
+        <b> senior credit officer</b> approves — the memo is only published after sign-off.
+      </div>
+    </div>
+  );
+}
+
+// ---------- decision summary (bottom line up front) ----------
+
+function recommendedDecision(memo: string | null): string | null {
+  if (!memo) return null;
+  const m = memo.match(/##\s*Recommended Decision\s*\n+([\s\S]*?)(?:\n#|\n##|$)/i);
+  if (!m) return null;
+  const first = m[1].trim().split("\n").find((l) => l.trim()) || null;
+  return first;
+}
+
+function DecisionSummary({ snap, memo }: { snap: RunSnapshot; memo: string | null }) {
+  const run = snap.run!;
+  const audit = snap.audit ?? [];
+  const policy = audit.find((a) => a.action === "Policy evaluation");
+  const reasons = (policy?.meta?.reasons as string[] | undefined) ?? [];
+  const decision = audit.find((a) => a.action.startsWith("Decision recorded"));
+  const published = audit.find((a) => a.action === "Memo published");
+  const rec = recommendedDecision(memo);
+  return (
+    <div className="card decision">
+      <h2>Decision Summary</h2>
+      <div className="dverdict">
+        <span className={`status-pill ${run.status === "COMPLETED" ? "ok" : "err"}`}>{run.status}</span>
+        {run.status === "COMPLETED" && <span className="dtext">Renewal approved — memo published to the official record.</span>}
+        {run.status === "REJECTED" && <span className="dtext">Renewal rejected by the senior credit officer.</span>}
+        {run.status === "FAILED" && <span className="dtext">Run failed: {run.fail_reason}</span>}
+      </div>
+      <div className="kv"><span className="k">Recommended</span>
+        <span className="dv">{rec ?? "—"}</span></div>
+      <div className="kv"><span className="k">Policy trigger</span>
+        <span className="dv">{reasons.length ? reasons.join(" + ") : "no approval required (auto-completed)"}</span></div>
+      <div className="kv"><span className="k">Decided by</span>
+        <span className="dv">{run.approved_by ? `${run.approved_by} (${run.approval_role}) — ${decision?.detail ?? ""}` : "—"}</span></div>
+      <div className="kv"><span className="k">Memo</span>
+        <span className="dv mono">{String(published?.meta?.path ?? run.memo_official_path ?? "draft only")}</span></div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -118,6 +207,7 @@ export default function App() {
     return <Login onLogin={onLogin} error={error} />;
   }
 
+  const isOfficer = user.role === "Senior Credit Officer";
   const run = snap?.run ?? null;
   const isTerminal = run ? ["COMPLETED", "REJECTED", "FAILED"].includes(run.status) : false;
   const isAwaiting = run?.status === "AWAITING_APPROVAL";
@@ -133,8 +223,11 @@ export default function App() {
             <div className="gov">
               <h2>Governance Review In Progress</h2>
               <div>Request ID: <span className="rid">{snap.approval_request.request_id}</span></div>
-              <p>The governance team has been notified. This page will automatically continue once
-                approval is granted, or you can re-submit manually after approval.</p>
+              <p>The policy gate paused this run: a Senior Credit Officer must approve before the
+                memo is published. A signed approval email has been sent to the officer — the
+                decision can be recorded from the email or from the officer's console in this portal.
+                This page will automatically continue once approval is granted, or you can re-submit
+                manually after approval.</p>
               <div className="actions">
                 <a className="btn-primary btn-blue" href={mailUrl()} target="_blank" rel="noreferrer">
                   📧 View approval email (inbox)
@@ -161,17 +254,29 @@ export default function App() {
                 <div className="banner err">✖ Run failed: {run.fail_reason}</div>
               )}
 
+              <ArchitectureStrip />
+
+              {isTerminal && <DecisionSummary snap={snap!} memo={memo} />}
+
               <div className="card">
                 <h2>Workflow Progress</h2>
                 <ul className="steps">
-                  {(snap?.steps ?? []).map((s) => (
-                    <li key={s.seq} className={s.state}>
-                      <span className={`dot ${s.state}`}>
-                        {s.state === "done" ? "✓" : s.state === "active" ? <span className="pulse" /> : s.state === "failed" ? "✖" : ""}
-                      </span>
-                      <span className="lbl">{s.name}</span>
-                    </li>
-                  ))}
+                  {(snap?.steps ?? []).map((s) => {
+                    const meta = STEP_META[s.seq];
+                    return (
+                      <li key={s.seq} className={s.state}>
+                        <span className={`dot ${s.state}`}>
+                          {s.state === "done" ? "✓" : s.state === "active" ? <span className="pulse" /> : s.state === "failed" ? "✖" : ""}
+                        </span>
+                        <div className="step-txt">
+                          <span className="lbl">{s.name}
+                            {meta && <span className="step-actor">{meta.actor}</span>}
+                          </span>
+                          {meta && <span className="step-why">{meta.why}</span>}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
 
@@ -179,6 +284,7 @@ export default function App() {
                 <div className="card memo">
                   <h2>Generated Memo</h2>
                   <MemoBody md={memo} />
+                  <MemoProvenance snap={snap!} />
                 </div>
               )}
 
@@ -197,33 +303,46 @@ export default function App() {
               {isTerminal && (
                 <div className="card">
                   <h2>Audit Trail</h2>
+                  <div className="audit-note">
+                    Every entry explains <b>what</b> happened, <b>why</b> it was needed, and
+                    <b> what resulted</b> — click a row for the full evidence (actor, tool, source,
+                    latency, model, decision path).
+                  </div>
                   <ul className="audit-list">
                     {(snap?.audit ?? []).map((a, i) => {
                       const open = expandedAudit.has(i);
-                      const hasDetail = a.detail && a.detail.length > 0;
+                      const hasInfo = Boolean((a.detail && a.detail.length > 0) || (a.reason && a.reason.length > 0));
+                      const metaEntries = Object.entries(a.meta ?? {}).filter(([, v]) => v !== null && v !== "" && v !== undefined);
                       return (
                         <li key={i} className={open ? "open" : ""}>
                           <span className="n">{i + 1}</span>
                           <div className="audit-main"
-                            onClick={() => hasDetail && setExpandedAudit((prev) => {
+                            onClick={() => hasInfo && setExpandedAudit((prev) => {
                               const next = new Set(prev);
                               if (next.has(i)) next.delete(i); else next.add(i);
                               return next;
                             })}>
                             <span className="audit-action">{a.action}</span>
-                            {hasDetail && (
-                              <>
-                                <span className="audit-detail-inline">{a.detail}</span>
-                                <span className="audit-toggle" aria-expanded={open}>{open ? "−" : "+"}</span>
-                              </>
+                            {a.detail && <span className="audit-detail-inline">{a.detail}</span>}
+                            {hasInfo && (
+                              <span className="audit-toggle" aria-expanded={open}>{open ? "−" : "+"}</span>
                             )}
                           </div>
                           <span className="ts">{fmtTs(a.ts)}</span>
                           {open && (
                             <div className="audit-detail">
                               <div className="d-row"><span className="d-k">Actor</span><span>{a.actor}</span></div>
-                              <div className="d-row"><span className="d-k">Action</span><span>{a.action}</span></div>
-                              <div className="d-row"><span className="d-k">Detail</span><span>{a.detail || "—"}</span></div>
+                              <div className="d-row"><span className="d-k">Why</span><span>{a.reason || "—"}</span></div>
+                              <div className="d-row"><span className="d-k">Result</span><span>{a.detail || "—"}</span></div>
+                              {metaEntries.length > 0 && (
+                                <div className="d-row"><span className="d-k">Evidence</span>
+                                  <span className="evid">
+                                    {metaEntries.map(([k, v]) => (
+                                      <span className="ev" key={k}><b>{k}</b>: {String(v ?? "—")}</span>
+                                    ))}
+                                  </span>
+                                </div>
+                              )}
                               <div className="d-row"><span className="d-k">Timestamp</span><span className="mono">{a.ts}</span></div>
                             </div>
                           )}
@@ -234,6 +353,8 @@ export default function App() {
                 </div>
               )}
             </>
+          ) : isOfficer ? (
+            <ApproverConsole onOpenRun={(rid) => { window.location.search = `?run=${rid}`; }} />
           ) : (
             <CaseForm cases={CASES} user={user} onGenerate={onGenerate} busy={busy} />
           )}
@@ -268,6 +389,135 @@ export default function App() {
   );
 }
 
+function MemoProvenance({ snap }: { snap: RunSnapshot }) {
+  const audit = snap.audit ?? [];
+  const draft = audit.find((a) => a.action === "Draft memo saved");
+  const systems = (audit.find((a) => a.action === "Systems accessed")?.meta?.systems as string[] | undefined) ?? [];
+  const decision = audit.find((a) => a.action.startsWith("Decision recorded"));
+  const published = audit.find((a) => a.action === "Memo published");
+  const backend = (draft?.meta?.backend as string) ?? "";
+  const model = draft?.meta?.model as string | undefined;
+  return (
+    <div className="provenance">
+      <div className="section-label">PROVENANCE — HOW THIS MEMO WAS PRODUCED</div>
+      <div className="prov-flow">
+        <span className="prov">🗄 {systems.join(" · ")} <i>via governed MCP</i></span>
+        <span className="prov-arrow">→</span>
+        <span className="prov">🤖 credit-memo-agent <i>{backend}{model ? ` (${model})` : ""}</i></span>
+        <span className="prov-arrow">→</span>
+        <span className="prov">🛡 policy + approval <i>{decision ? decision.detail : "auto"}</i></span>
+        <span className="prov-arrow">→</span>
+        <span className="prov">📄 published <i>{String(published?.meta?.path ?? "draft")}</i></span>
+      </div>
+      {Boolean(draft?.meta?.reprompted) && (
+        <div className="prov-note">⚠ The LLM's first draft failed validation and was re-prompted once before it passed.</div>
+      )}
+    </div>
+  );
+}
+
+// ---------- approver console (sarah) ----------
+
+function ApproverConsole({ onOpenRun }: { onOpenRun: (runId: string) => void }) {
+  const [items, setItems] = useState<ApprovalItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+
+  async function refresh() {
+    try {
+      const r = await getPendingApprovals();
+      setItems(r.items);
+      setErr(null);
+    } catch (e) { setErr((e as Error).message); }
+    finally { setLoading(false); }
+  }
+  useEffect(() => {
+    refresh();
+    const t = setInterval(refresh, 3000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function decide(item: ApprovalItem, decision: "approve" | "reject") {
+    if (decision === "reject" && !reason.trim()) { setNote("Enter a reason before rejecting."); return; }
+    setBusyId(item.request_id);
+    try {
+      await decideApproval(item.request_id, decision, reason.trim());
+      setNote(decision === "approve"
+        ? `Approved ${item.case_id} — the run will complete and the memo is being published.`
+        : `Rejected ${item.case_id}. The run is closed; the analyst can re-submit.`);
+      setRejecting(null);
+      setReason("");
+      await refresh();
+    } catch (e) { setNote((e as Error).message); }
+    finally { setBusyId(null); }
+  }
+
+  return (
+    <>
+      <div className="card">
+        <h2>Governance Console</h2>
+        <div className="section-label">SENIOR CREDIT OFFICER — {`Sarah Chen (E200145)`}</div>
+        <p className="console-lead">
+          Runs that cross the approval policy (amount threshold and/or KYC pending) pause here.
+          Review the case and policy trigger, then record your decision — it is timestamped in the
+          audit trail under your identity.
+        </p>
+      </div>
+      <div className="card">
+        <h2>Approval Queue <span className={`qcount ${items.length ? "on" : ""}`}>{items.length}</span></h2>
+        {err && <div className="banner err">⚠ {err}</div>}
+        {loading && <div className="banner">Loading queue…</div>}
+        {!loading && !err && items.length === 0 && (
+          <div className="queue-empty">✔ No pending approvals — everything that needs sign-off has been decided.</div>
+        )}
+        {items.map((it) => (
+          <div className="queue-item" key={it.request_id}>
+            <div className="qi-head">
+              <span className="qi-case">{it.case_id}</span>
+              <span className="qi-client">{it.client} ({it.client_code})</span>
+              <span className="qi-amount">${it.amount_usd.toLocaleString()}</span>
+            </div>
+            <div className="qi-meta">
+              <span>Requested by {it.requested_by} ({it.requested_emp_id})</span>
+              <span>· {fmtTs(it.created_at)}</span>
+            </div>
+            {it.policy_reasons.length > 0 && (
+              <div className="qi-policy">
+                <b>Policy:</b> {it.policy_reasons.join(" + ")}
+              </div>
+            )}
+            {rejecting === it.request_id && (
+              <div className="qi-reason">
+                <input value={reason} onChange={(e) => setReason(e.target.value)}
+                  placeholder="Rejection reason (recorded in the audit trail)…" />
+              </div>
+            )}
+            <div className="qi-actions">
+              <button className="btn-primary btn-green" disabled={busyId === it.request_id}
+                onClick={() => decide(it, "approve")}>
+                {busyId === it.request_id ? "Recording…" : "✔ Approve"}
+              </button>
+              <button className="btn-primary btn-red" disabled={busyId === it.request_id}
+                onClick={() => { setRejecting(rejecting === it.request_id ? null : it.request_id); setNote(null); }}>
+                ✖ Reject
+              </button>
+              <a className="btn-ghost" href={`/?run=${it.run_id}`} onClick={(e) => { e.preventDefault(); onOpenRun(it.run_id); }}>
+                👁 View run
+              </a>
+            </div>
+          </div>
+        ))}
+        {note && <div className="banner ok">{note}</div>}
+      </div>
+    </>
+  );
+}
+
 function Header({ user, onLogout }: { user: User; onLogout: () => void }) {
   const initials = user.name.split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase();
   return (
@@ -281,7 +531,7 @@ function Header({ user, onLogout }: { user: User; onLogout: () => void }) {
         <div className="avatar">{initials}</div>
         <div style={{ textAlign: "right" }}>
           <div>{user.name}</div>
-          <div style={{ fontSize: 11, opacity: .7 }}>{user.employee_id} · {user.department}</div>
+          <div style={{ fontSize: 11, opacity: .7 }}>{user.employee_id} · {user.role}</div>
         </div>
         <button className="logout" onClick={onLogout}>Logout</button>
       </div>
@@ -294,7 +544,7 @@ function Login({ onLogin, error }: { onLogin: (u: string, p: string) => void; er
   const [p, setP] = useState("analyst123");
   return (
     <div className="app" style={{ alignItems: "center", justifyContent: "center", background: "#0f1e3a" }}>
-      <div className="card" style={{ width: 380, boxShadow: "0 20px 50px rgba(0,0,0,.4)" }}>
+      <div className="card" style={{ width: 400, boxShadow: "0 20px 50px rgba(0,0,0,.4)" }}>
         <h2 style={{ textAlign: "center" }}>Credit Risk Portal</h2>
         <div className="section-label" style={{ textAlign: "center" }}>SIGN IN</div>
         {error && <div className="banner err" style={{ marginBottom: 12 }}>{error}</div>}
@@ -307,7 +557,12 @@ function Login({ onLogin, error }: { onLogin: (u: string, p: string) => void; er
           Sign In
         </button>
         <div className="how" style={{ marginTop: 14 }}>
-          Demo credentials — Analyst: <b>nick / analyst123</b> · Officer: <b>sarah / officer123</b>
+          Demo credentials — Analyst: <b>nick / analyst123</b> · Senior Credit Officer: <b>sarah / officer123</b>
+          <br />
+          <span style={{ opacity: .8 }}>
+            Analyst = <b>Nick Johnson</b> (Risk Analyst · E102938) · Officer = Sarah Chen (Senior Credit Officer · E200145)
+          </span>
+          <br /><span style={{ opacity: .75 }}>nick requests memos; sarah governs (approves/rejects) the ones that cross the policy gate.</span>
         </div>
       </div>
     </div>
@@ -345,9 +600,12 @@ function CaseForm({ cases, user, onGenerate, busy }: { cases: typeof CASES; user
       <div className="how">
         <b>HOW THIS WORKS</b><br />
         When you click <b>Generate</b>, the portal passes your authenticated identity and the selected
-        case ID to the platform. The agent then retrieves data from approved systems (CRM, credit
-        exposure, transactions, compliance, prior memos), drafts the memo, and submits it for policy
-        evaluation. If approval is required, the workflow pauses until a senior officer approves.
+        case ID to the platform. The <b>workflow engine</b> then drives the
+        <b> credit-memo-agent (LLM)</b>, which pulls data through <b>governed MCP tools</b> — every
+        bank-system read (CRM, credit exposure, transactions, compliance, prior memos) is
+        identity-checked and audit-logged. The LLM drafts the memo, the <b>policy engine</b>
+        evaluates it (amount threshold + KYC), and if approval is required the workflow pauses until
+        a senior officer approves.
       </div>
     </>
   );
