@@ -165,7 +165,7 @@ def signed_link(request_id: str, decision: str, ttl: int) -> str:
 # ---------------- scenarios ----------------
 
 def s1_happy(sink, results, label):
-    """Video path: $5M Acme -> approval email -> approve(8h) -> COMPLETED + official memo + client mail."""
+    """Video path: $5M Acme -> approval email -> approve -> COMPLETED + official memo + client mail."""
     tok = login("nick", "analyst123")
     _, b = api("/api/runs", "POST", {"case_id": "CR-2026-00451", "amount_usd": 5_000_000}, tok)
     run_id = b["run_id"]
@@ -180,8 +180,8 @@ def s1_happy(sink, results, label):
                    "Credit Risk Portal", "24 hours", "WHY APPROVAL IS REQUIRED"]:
         assert needle in mail["body"], f"S1: approval mail missing {needle!r}"
     assert mail["to"] == "Sarah.Chen@mybank.com", f"S1: mail to {mail['to']}"
-    link = extract_link(mail["body"], "approve", 8)
-    assert link, "S1: no approve(8h) link in email"
+    link = extract_link(mail["body"], "approve", 24)
+    assert link, "S1: no approve link in email"
     code, b2 = api(link)
     assert code == 200 and b2.get("status") == "approve", f"S1: approve link failed {code} {b2}"
     code2, b3 = api(link)

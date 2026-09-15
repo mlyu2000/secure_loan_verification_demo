@@ -58,7 +58,6 @@ def _mcp_tool(tool: str, identity: Identity, case_id: str) -> dict:
 def _build_links(request_id: str) -> dict[str, str]:
     exp = int(time.time()) + settings.link_ttl_hours * 3600
     return {
-        "approve_8h": build_approval_link(request_id, "approve", 8, exp),
         "approve_24h": build_approval_link(request_id, "approve", 24, exp),
         "reject": build_approval_link(request_id, "reject", 24, exp),
         "dashboard": f"{settings.base_url}/?run=approval:{request_id}",
@@ -68,7 +67,7 @@ def _build_links(request_id: str) -> dict[str, str]:
 def _email_approval(request_id: str, case_id: str, emp_id: str, policy) -> bool:
     links = _build_links(request_id)
     return send_approval_request(request_id, case_id, emp_id, AGENT_NAME, TOOL_HOST,
-                                 APPROVAL_REASON, links["approve_8h"], links["approve_24h"],
+                                 APPROVAL_REASON, links["approve_24h"],
                                  links["reject"], links["dashboard"], policy,
                                  _load_case(case_id) or {})
 

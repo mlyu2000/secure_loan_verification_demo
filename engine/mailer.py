@@ -98,7 +98,7 @@ def _now_ms() -> int:
 
 def send_approval_request(request_id: str, case_id: str, emp_id: str,
                           agent: str, tool_host: str, reason: str,
-                          approve_8h_link: str, approve_24h_link: str, reject_link: str,
+                          approve_24h_link: str, reject_link: str,
                           dashboard_link: str, policy, case: dict) -> bool:
     client = case.get("client", "—")
     code = case.get("client_code", "—")
@@ -154,7 +154,6 @@ def send_approval_request(request_id: str, case_id: str, emp_id: str,
 
           <div style="margin-top:20px;">
             <div style="font-size:11px;font-weight:bold;letter-spacing:1px;color:{_MUTE};margin-bottom:10px;">RECORD YOUR DECISION</div>
-            {_button(approve_8h_link, "✔ Approve — decision valid 8 h", "#15803d")}
             {_button(approve_24h_link, "✔ Approve — decision valid 24 h", "#15803d")}
             {_button(reject_link, "✖ Reject", "#b91c1c")}
             <div style="margin-top:10px;">
@@ -202,7 +201,6 @@ GOVERNANCE CONTEXT
  - Valid for: 24 hours from issue
 
 RECORD YOUR DECISION (signed single-use links)
-Approve (8 h):  {approve_8h_link}
 Approve (24 h): {approve_24h_link}
 Reject:         {reject_link}
 Open in portal: {dashboard_link}

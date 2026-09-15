@@ -24,7 +24,7 @@ ezua:
 portal:
   image:
     repository: slvd-portal
-    tag: "0.2.4"
+    tag: "0.2.5"
     pullPolicy: IfNotPresent
   port: 80
   resources:
@@ -34,7 +34,7 @@ portal:
 engine:
   image:
     repository: slvd
-    tag: "0.2.4"
+    tag: "0.2.5"
     pullPolicy: IfNotPresent
   port: 8080
   env:
@@ -55,7 +55,7 @@ engine:
 mcp:
   image:
     repository: slvd
-    tag: "0.2.4"
+    tag: "0.2.5"
     pullPolicy: IfNotPresent
   port: 8000
   resources:
