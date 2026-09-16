@@ -215,16 +215,29 @@ export default function App() {
     } catch (e) { setError((e as Error).message); }
   };
 
+  const [chatMsgs, setChatMsgs] = useState<{ who: "user" | "agent"; text: string }[]>([]);
+  const [chatText, setChatText] = useState("");
+  const [chatBusy, setChatBusy] = useState(false);
+  const chatBodyRef = useRef<HTMLDivElement>(null);
+  // keep the newest message / thinking indicator in view
+  useEffect(() => {
+    const el = chatBodyRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chatMsgs.length, chatBusy]);
   const onChat = async (text: string) => {
+    const q = text.trim();
+    if (!q || chatBusy) return;
+    setChatMsgs((m) => [...m, { who: "user", text: q }]);
+    setChatBusy(true);
     try {
-      const r = await chat(text);
+      const r = await chat(q);
       setChatMsgs((m) => [...m, { who: "agent", text: r.reply }]);
     } catch (e) {
       setChatMsgs((m) => [...m, { who: "agent", text: `error: ${(e as Error).message}` }]);
+    } finally {
+      setChatBusy(false);
     }
   };
-  const [chatMsgs, setChatMsgs] = useState<{ who: "user" | "agent"; text: string }[]>([]);
-  const [chatText, setChatText] = useState("");
 
   if (!user) {
     return <Login onLogin={onLogin} error={error} />;
@@ -403,20 +416,28 @@ export default function App() {
               <span>SLVD Assistant</span>
               <span style={{ cursor: "pointer" }} onClick={() => setChatOpen(false)}>✕</span>
             </div>
-            <div className="chat-body">
+            <div className="chat-body" ref={chatBodyRef}>
               {chatMsgs.length === 0 && <div className="placeholder">I'm the SLVD demo assistant. Ask me how this demo works, about its components, the approval policy, the roles — or about a case like CR-2026-00451. You can also ask me to generate a memo.</div>}
               {chatMsgs.map((m, i) => (
                 <div key={i} className={`msg ${m.who}`}>
-                  <div className="who">{m.who === "user" ? user.name : "credit-memo-agent"}</div>
+                  <div className="who">{m.who === "user" ? user.name : "SLVD Assistant"}</div>
                   <div className="bubble">{m.text}</div>
                 </div>
               ))}
+              {chatBusy && (
+                <div className="msg agent">
+                  <div className="who">SLVD Assistant</div>
+                  <div className="bubble thinking">thinking…</div>
+                </div>
+              )}
             </div>
             <div className="chat-input">
-              <input value={chatText} placeholder="Ask about a case, client, or request a memo…"
+              <input value={chatText} placeholder={chatBusy ? "Assistant is thinking…" : "Ask about a case, client, or request a memo…"}
+                disabled={chatBusy}
                 onChange={(e) => setChatText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && chatText.trim()) { onChat(chatText.trim()); setChatText(""); } }} />
-              <button className="send" onClick={() => { if (chatText.trim()) { onChat(chatText.trim()); setChatText(""); } }}>➤</button>
+              <button className="send" disabled={chatBusy || !chatText.trim()}
+                onClick={() => { if (chatText.trim()) { onChat(chatText.trim()); setChatText(""); } }}>➤</button>
             </div>
           </div>
         )}

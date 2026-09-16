@@ -59,6 +59,14 @@ body {
 .chat .chat-input input {
   flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 13px;
 }
+.chat .chat-input input:disabled { background: #f1f5f9; color: var(--muted); cursor: default; }
+.chat .send:disabled { opacity: .5; cursor: default; }
+.msg.agent .bubble.thinking { color: var(--muted); font-style: italic; }
+.msg.agent .bubble.thinking::after {
+  content: ""; display: inline-block; width: 3px; height: 12px; margin-left: 2px;
+  background: var(--muted); vertical-align: -1px; animation: thinkblink 1s steps(1) infinite;
+}
+@keyframes thinkblink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 .chat .send {
   background: var(--blue); color: #fff; border: 0; border-radius: 8px;
   width: 38px; cursor: pointer; font-size: 16px;
