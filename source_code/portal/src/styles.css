@@ -91,11 +91,10 @@ body {
 /* "how this works" tooltip on the Case Selection tile */
 .info-tip { position: relative; display: inline-flex; }
 .info-icon {
-  width: 18px; height: 18px; border-radius: 50%;
-  background: var(--blue); color: #fff; font-size: 12px; font-weight: 700;
-  font-style: italic; font-family: Georgia, "Times New Roman", serif;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--blue); color: #fff;
   display: inline-flex; align-items: center; justify-content: center;
-  cursor: help; line-height: 1;
+  cursor: help;
 }
 .info-icon:hover { background: #1d4ed8; }
 .info-pop {

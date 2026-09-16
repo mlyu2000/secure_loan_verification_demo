@@ -24,7 +24,7 @@ ezua:
 portal:
   image:
     repository: slvd-portal
-    tag: "0.3.4"
+    tag: "0.3.6"
     pullPolicy: IfNotPresent
   port: 80
   resources:

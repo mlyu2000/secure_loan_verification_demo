@@ -710,7 +710,12 @@ function CaseForm({ cases, user, onGenerate, busy }: { cases: typeof CASES; user
         <div className="card-head">
           <h2>Case Selection</h2>
           <span className="info-tip">
-            <span className="info-icon" aria-label="How this works" title="How this works">i</span>
+            <span className="info-icon" aria-label="How this works" role="img" title="How this works">
+              <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="currentColor">
+                <circle cx="12" cy="5.2" r="1.9" />
+                <rect x="10.1" y="9.2" width="3.8" height="9.4" rx="1.9" />
+              </svg>
+            </span>
             <span className="info-pop">
               <span className="info-title">HOW THIS WORKS</span>
               <p>When you click <b>Generate</b>, the portal passes your authenticated identity and the selected case ID to the platform, then:</p>
