@@ -163,25 +163,37 @@ secure_loan_verification_demo/
 
 ## Deployment (HPE Private Cloud AI)
 
-The demo is deployed as a BYOA **EzAppConfig** (the PCAI platform install trigger).
-Chart values are platform-agnostic: hosts use `${DOMAIN_NAME}` (substituted by the
-EzAppConfig controller), and the agent/LLM endpoints are plain in-cluster service URLs
-set in `charts/slvd/values.yaml` (`SLVD_OPENCLAW_URL`, `SLVD_LLM_BASE_URL`).
+The demo is deployed by **importing the framework through the PCAI platform UI**
+(BYOA import) — no CLI `kubectl apply` of the EzAppConfig. The UI does the install:
+it pulls the chart from chartmuseum and applies the values you enter in the form.
 
-```bash
-make -f source_code/Makefile venv
-make -f source_code/Makefile test-unit && make -f source_code/Makefile test-e2e
-make -f source_code/Makefile build-images        # build + push engine/mcp + portal to the registry
-make -f source_code/Makefile chart               # helm lint + package + push to chartmuseum
-make -f source_code/Makefile deploy              # create ns, apply EzAppConfig, wait for pods
-make -f source_code/Makefile verify              # external URL + agent + LLM health checks
-make -f source_code/Makefile demo-run            # one fresh end-to-end run via the portal API
-```
+1. **Publish the artifacts** (one-off, from a dev machine):
+
+   ```bash
+   make -f source_code/Makefile build-images   # build + push engine/mcp + portal images to the registry
+   make -f source_code/Makefile chart          # helm lint + package + push the chart to chartmuseum
+   ```
+
+2. **Import in the PCAI UI**: Frameworks → *Import framework* (BYOA) → select the
+   `slvd` chart version from chartmuseum → fill in the values:
+   - image tag (from step 1) and `${DOMAIN_NAME}` for the ingress host
+   - the `secrets` block: `litellmApiKey`, `jwtSecret`, `hmacSecret`, `openclawToken`
+   - agent/LLM endpoints: `SLVD_OPENCLAW_URL` (NemoClaw gateway service) and
+     `SLVD_LLM_BASE_URL` + `SLVD_LLM_MODEL` (litellm proxy)
+
+   → *Deploy*. The platform creates the namespace and the release.
+
+3. **Post-deploy checks** (optional, from a dev machine):
+
+   ```bash
+   make -f source_code/Makefile verify         # external URL + agent + LLM health checks
+   make -f source_code/Makefile demo-run       # one fresh end-to-end run via the portal API
+   ```
 
 > **Make note:** the only Makefile lives at `source_code/Makefile` (there is no root
 > wrapper anymore). Run it as `make -f source_code/Makefile <target>`, or `cd source_code`
-> first and use plain `make <target>`. All targets (venv/test/build/chart/deploy/…) already
-> resolve paths relative to the repo root, so they work from either location.
+> first and use plain `make <target>`. All targets already resolve paths relative to
+> the repo root, so they work from either location.
 
 - **External URLs**: an Istio VirtualService on the platform ingress gateway
   (`istio-system/ezaf-gateway`) exposes
@@ -202,10 +214,8 @@ make -f source_code/Makefile demo-run            # one fresh end-to-end run via 
 
 ## Verification
 
-The demo is validated by real runs, not by reading the code:
+The demo is validated by a real run, not by reading the code:
 
-- **Unit**: `make -f source_code/Makefile test-unit` → 25 pass (engine + mcp).
-- **E2E**: `make -f source_code/Makefile test-e2e` → 8/8 scenarios (S1–S8).
 - **Live**: a real run through the openclaw agent → governed MCP → approval gate →
   approver decision → published memo → client email, with every step in the audit trail.
 
