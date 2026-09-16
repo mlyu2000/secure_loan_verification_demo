@@ -168,7 +168,7 @@ python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 cd source_code/portal && npm install && npm run build && cd ../..
 
-make test-unit      # engine + mcp unit tests (21)
+make test-unit      # engine + mcp unit tests (25)
 make test-e2e       # 8 local simulation scenarios (S1–S8)
 ```
 
@@ -211,7 +211,7 @@ make demo-run            # one fresh end-to-end run via the portal API
 
 The demo is validated by real runs, not by reading the code:
 
-- **Unit**: `make test-unit` → 21 pass (engine + mcp).
+- **Unit**: `make test-unit` → 25 pass (engine + mcp).
 - **E2E**: `make test-e2e` → 8/8 scenarios (S1–S8).
 - **Live**: a real run through the openclaw agent → governed MCP → approval gate →
   approver decision → published memo → client email, with every step in the audit trail.

@@ -27,7 +27,7 @@ Replicate the video demo as a **working, interactive, deployed application** on 
 
 1. A risk analyst (Nick Johnson, E102938) opens the **Credit Risk Portal**, selects case **CR-2026-00451** (Acme Industrial Holdings, $5,000,000 renewal), clicks **Generate renewal decision memo**.
 2. A governed AI agent (**credit-memo-agent**, NemoClaw/OpenClaw in an OpenShell sandbox) runs the 10-step governed workflow: pulls data from 5 governed back-office systems (CRM, Credit exposure, Transactions, Compliance, Prior memos) via the governed MCP `credit-memo-mcp`, analyzes, and drafts the memo.
-3. Policy engine triggers (**amount ≥ $5M** and/or **KYC pending**) → workflow **pauses** at "Approval decision" → **approval email** is sent to senior officer Sarah Chen (E200145) with full context (request ID, user, agent, tool, reason, Approve-8h / Approve-24h / Reject buttons).
+3. Policy engine triggers (**amount ≥ $5M** and/or **KYC pending**) → workflow **pauses** at "Approval decision" → **approval email** is sent to senior officer Sarah Chen (E200145) with full context (request ID, user, agent, tool, reason) and a single **Approve (24 h)** button + a **Reject** button.
 4. Sarah approves via the signed email link (or Admin dashboard) → decision **timestamped in audit log** → workflow resumes → memo **published** to `/official/credit/2026/CR-2026-00451` → run **Completed** (Run ID `RUN-…`).
 5. Client notification **"Loan Application Approved"** issued.
 6. All of the above is **observable** in the portal: Workflow Progress (10 steps), Generated Memo (video-identical content), Governance Review card (request UUID, Re-submit button), Run Summary + Audit Trail (7 entries).
@@ -109,7 +109,7 @@ Plus: **Agent Chat** sidebar (all screens) — placeholder "Ask questions about 
 
 ### 4.2 `engine` — workflow-engine (Python 3.11 + FastAPI + SQLAlchemy/SQLite-on-PVC)
 - **FSM**: 10-step run state machine, states `PENDING→RUNNING→AWAITING_APPROVAL→COMPLETED|REJECTED|FAILED`; illegal transitions rejected (unit-tested).
-- **REST**: `POST /api/runs` (start; body: case_id, amount, user_token) · `GET /api/runs/{id}` · `GET /api/runs/{id}/events` (SSE) · `GET /api/runs/{id}/memo` · `GET /api/audit/{run_id}` · `POST /api/approvals/{request_id}/decision` (decision=approve|reject, ttl=8h|24h, signed) · `POST /api/approvals/{request_id}/resubmit` · `POST /api/chat` (proxy to agent) · `GET /healthz` · `GET /api/runs` (list).
+- **REST**: `POST /api/runs` (start; body: case_id, amount, user_token) · `GET /api/runs/{id}` · `GET /api/runs/{id}/events` (SSE) · `GET /api/runs/{id}/memo` · `GET /api/audit/{run_id}` · `POST /api/approvals/{request_id}/decision` (decision=approve|reject, signed single-use email link, ttl_hours=24) · `POST /api/approvals/{request_id}/resubmit` · `POST /api/chat` (proxy to agent) · `GET /healthz` · `GET /api/runs` (list).
 - **Agent orchestration**: on run start → validate identity (JWT) → resolve case → prompt credit-memo-agent (OpenClaw HTTP API) with the case payload; track MCP tool-call events reported back by the MCP server (webhook → engine `/api/internal/tool-events`) to advance the 6 data steps; memo returned by agent → saved to `/data/docs/drafts/credit/<case>/memo.md` → **policy evaluation** → if approval required: create approval request (UUID), email Sarah (signed link, 24h expiry), state `AWAITING_APPROVAL`; on decision: record timestamped audit entry, resume → publish to `/data/docs/official/credit/2026/<case>/memo.md` → client notification email → `COMPLETED`.
 - **Policy engine** (pure function, unit-tested): `needs_approval(amount, kyc_status) = amount >= 5_000_000 or kyc_status == "pending"`.
 - **Audit**: append-only table (ISO-8601 UTC timestamps, immutable — UPDATE/DELETE disabled at schema level) + JSONL mirror.
@@ -134,7 +134,7 @@ Plus: **Agent Chat** sidebar (all screens) — placeholder "Ask questions about 
 
 ### 4.5 `mailpit` (container only, config in chart)
 - SMTP :1025, web UI :8025. Sender `noreply@agentplatform.local` (video: `noreply@agentplatform.hpe.com` — domain deviation noted §14).
-- **Approval email format (video-identical body)**: title "Agent Platform – Access Request"; fields Request ID / User / Agent (`credit-memo-agent`) / Tool / Host (`credit-memo-mcp/workflow__submit_credit_memo`) / Reason ("Agent requires approval to invoke governed MCP method: workflow__submit_credit_memo"); buttons **Approve (8 h)** / **Approve (24 h)** / **Reject** → signed links; "view in Admin Dashboard" link (→ portal screen 4); "links expire in 24h".
+- **Approval email format**: subject `"[ACTION REQUIRED] Loan Renewal Approval — {case_id} · {client} · ${amount} · ref {request_id[:8]}"`; body title **"Approval Required — Loan Renewal Decision Memo"** (subtitle: `Case {id} · {client} · ${amount} renewal request`); body sections WHY APPROVAL IS REQUIRED (POLICY) / CASE SUMMARY / GOVERNANCE CONTEXT (incl. Approval request ID, "Valid for: 24 hours from issue"); decision buttons **single "✔ Approve — decision valid 24 h"** + **"✖ Reject"** → signed links; "Open the run in the Credit Risk Portal" link.
 - **Client notification**: subject "Loan Application Approved" after COMPLETED.
 
 ### 4.6 `charts/slvd` — Helm chart
@@ -231,7 +231,7 @@ Real agent + litellm: assert memo contains all canonical fields (regex/JSON chec
 ### 9.4 Simulation scenarios (the e2e matrix — all must pass)
 | # | Scenario | Inputs | Expected |
 |---|----------|--------|----------|
-| S1 | Happy path (video) | CR-2026-00451, $5M | 10 steps → AWAITING_APPROVAL → email w/ correct fields → approve(8h) → COMPLETED, RUN-NNNNN, draft→official paths, 7 audit entries, client "Loan Application Approved" mail, Run Summary matches §4.1-5 |
+| S1 | Happy path (video) | CR-2026-00451, $5M | 10 steps → AWAITING_APPROVAL → email w/ correct fields → approve(24h) → COMPLETED, RUN-NNNNN, draft→official paths, 7 audit entries, client "Loan Application Approved" mail, Run Summary matches §4.1-5 |
 | S2 | Below threshold | CR-2026-00452, $2M, KYC clear | No approval email; run auto-completes at Submission; audit has "Policy evaluated — no approval required" |
 | S3 | KYC pending below threshold | CR-2026-00453, $2M, KYC pending | Approval triggered (policy OR-rule); same flow as S1 |
 | S4 | Reject path | CR-2026-00451 → decision=reject | Run REJECTED; audit "Rejected by Sarah Chen (Senior Credit Officer)"; NO official publish; resubmit allowed → new request UUID → approve → COMPLETED |
@@ -375,7 +375,7 @@ The loop is designed to be launched from this session via `terminal(background=t
 ## 15. Rollout & verification procedure (final, post-loop)
 
 1. `python3 orchestrate/loop.py status` → confirm ACCEPTANCE PASS + HANDOFF.md.
-2. `make demo-run` (fresh cluster run, real LLM, human clicks the email link in Mailpit UI) → operator walkthrough: login → generate → watch 10 steps → open Mailpit → approve(8h) → watch resume → Run Summary + Audit → open published memo → client email "Loan Application Approved".
+2. `make demo-run` (fresh cluster run, real LLM, human clicks the email link in Mailpit UI) → operator walkthrough: login → generate → watch 10 steps → open Mailpit → approve(24h) → watch resume → Run Summary + Audit → open published memo → client email "Loan Application Approved".
 3. Screenshots of the 7 video-parity frames saved to `docs/parity/` for the record.
 4. `git push` final state; chart `slvd-<final>` in chartmuseum; EzAppConfig ready/ok.
 5. Cleanup option: `make clean` (BYOA teardown) if the demo is done.
