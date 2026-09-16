@@ -77,7 +77,7 @@ prepull:
 
 deploy:
 	$(K) create ns $(NS) --dry-run=client -o yaml | $(K) apply -f -
-	$(K) apply -f $(ROOT)/charts/slvd/ezappconfig.yaml
+	$(K) apply -f $(ROOT)/charts/slvd/ezappconfig.generated.yaml
 	$(K) wait --for=condition=ready pod -l app.kubernetes.io/part-of=slvd -n $(NS) --timeout=600s
 
 verify:

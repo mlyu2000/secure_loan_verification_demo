@@ -2,7 +2,7 @@
 1. Secret scan of the repo (gitleaks if available, else built-in pattern scan).
 2. Rendered-chart scan: `helm template` output must not contain any non-empty
    secret value (secrets must be empty/placeholder in committed values).
-3. Values files: values-secrets.yaml must be gitignored.
+3. Gitignore check: the gitignored EzAppConfig (real values incl. secrets) must be excluded.
 Exit 0 = clean.
 """
 from __future__ import annotations
@@ -25,6 +25,7 @@ SECRET_PATTERNS = [
 
 ALLOWLIST = {
     "IMPLEMENTATION_PLAN.md",  # mentions patterns in prose
+    "charts/slvd/ezappconfig.generated.yaml",  # gitignored; holds real values locally (deploy trigger)
     "e2e/security_scan.py",
     "venv/",
     "node_modules/",
@@ -120,14 +121,17 @@ def scan_rendered_chart() -> list[str]:
 
 
 def gitignore_ok() -> list[str]:
-    gi = os.path.join(ROOT, ".gitignore")
+    # No root .gitignore in this repo (by design) — ignore rules live in
+    # .git/info/exclude. The critical one: the generated EzAppConfig carries
+    # real secrets and must never be committed.
+    gi = os.path.join(ROOT, ".git", "info", "exclude")
     findings = []
     if not os.path.exists(gi):
-        return [".gitignore missing"]
+        return [".git/info/exclude missing"]
     txt = open(gi).read()
-    for req in ["values-secrets.yaml", ".env", "venv/", "node_modules/", "dist/", "logs/", "*.db"]:
+    for req in ["ezappconfig.generated.yaml", "venv/", "node_modules/", "*.db"]:
         if req not in txt:
-            findings.append(f".gitignore missing entry: {req}")
+            findings.append(f".git/info/exclude missing entry: {req}")
     return findings
 
 

@@ -45,15 +45,15 @@ spec:
               value: {{ $v | quote }}
             {{- end }}
             - name: SLVD_LLM_API_KEY
-              valueFrom: { secretKeyRef: { name: slvd-secrets, key: litellm-api-key } }
+              value: {{ .Values.secrets.litellmApiKey | quote }}
             - name: SLVD_JWT_SECRET
-              valueFrom: { secretKeyRef: { name: slvd-secrets, key: jwt-secret } }
+              value: {{ .Values.secrets.jwtSecret | quote }}
             - name: SLVD_HMAC_SECRET
-              valueFrom: { secretKeyRef: { name: slvd-secrets, key: hmac-secret } }
+              value: {{ .Values.secrets.hmacSecret | quote }}
             - name: SLVD_MCP_INTERNAL_TOKEN
-              valueFrom: { secretKeyRef: { name: slvd-secrets, key: hmac-secret } }
+              value: {{ .Values.secrets.hmacSecret | quote }}
             - name: SLVD_OPENCLAW_TOKEN
-              valueFrom: { secretKeyRef: { name: slvd-secrets, key: openclaw-token } }
+              value: {{ .Values.secrets.openclawToken | quote }}
           readinessProbe:
             httpGet: { path: /healthz, port: 8080 }
             initialDelaySeconds: 5

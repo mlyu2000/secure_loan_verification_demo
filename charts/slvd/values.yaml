@@ -1,4 +1,6 @@
-# SLVD chart values. Secrets live in values-secrets.yaml (gitignored).
+# SLVD chart values. The 'secrets' block below holds sensitive values: keep the
+# committed defaults EMPTY. Real values are injected at deploy time via the
+# EzAppConfig 'values' block (charts/slvd/ezappconfig.generated.yaml, gitignored).
 global:
   namespace: slvd
   imageRegistry: docker.io/eric021122
@@ -74,7 +76,8 @@ mailpit:
     requests: { cpu: 50m, memory: 64Mi }
     limits: { cpu: 200m, memory: 128Mi }
 
-# Secrets (from values-secrets.yaml — NOT committed)
+# Secrets — keep empty here; injected at deploy time via the EzAppConfig
+# 'values' block (gitignored ezappconfig.generated.yaml). No K8s Secret object.
 secrets:
   litellmApiKey: ""
   jwtSecret: ""
