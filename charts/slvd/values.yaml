@@ -8,7 +8,7 @@ global:
 
 # External hosts (Istio VirtualService on istio-system/ezaf-gateway).
 # ${DOMAIN_NAME} is substituted by the EzAppConfig controller at deploy time
-# (e.g. aie.cs1.ctc.sg.lab), so the same chart adapts to any PCAI deployment.
+# (e.g. your-domain.com), so the same chart adapts to any PCAI deployment.
 ingress:
   host: slvd.${DOMAIN_NAME}
   mailHost: slvd-mail.${DOMAIN_NAME}

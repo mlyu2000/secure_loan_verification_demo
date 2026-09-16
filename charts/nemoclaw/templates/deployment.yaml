@@ -1,0 +1,97 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nemoclaw.fullname" . }}
+  labels:
+    {{- include "nemoclaw.labels" . | nindent 4 }}
+    {{- if .Values.commonLabels }}
+    {{- toYaml .Values.commonLabels | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "nemoclaw.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "nemoclaw.selectorLabels" . | nindent 8 }}
+        {{- if .Values.commonLabels }}
+        {{- toYaml .Values.commonLabels | nindent 8 }}
+        {{- end }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            runAsUser: {{ .Values.securityContext.runAsUser }}
+            runAsGroup: {{ .Values.securityContext.runAsGroup }}
+            fsGroup: {{ .Values.securityContext.fsGroup }}
+          image: "{{ .Values.sandbox.image }}"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -x
+              echo "Starting OpenClaw with automatic device approval..."
+              
+              # Create the gateway config file directly with OpenClaw v2.0 format
+              echo "Creating gateway config..."
+              python3 -c "import json, os; d = os.environ.get('DOMAIN_NAME', 'your.domain.com'); gateway_token = os.environ.get('OPENCLAW_GATEWAY_TOKEN', ''); config = {'gateway': {'bind': 'custom', 'customBindHost': '0.0.0.0', 'port': 18789, 'controlUi': {'allowedOrigins': ['https://' + d], }, 'auth': {'mode': 'token', 'token': gateway_token}}}; config_dir = '/home/ubuntu/.openclaw'; os.makedirs(config_dir, exist_ok=True); open(config_dir + '/openclaw.json', 'w').write(json.dumps(config, indent=2))" && echo "Config created successfully" || echo "Config creation skipped"
+              
+              # Run openclaw onboard for workspace creation
+              echo "Running openclaw onboard..."
+              openclaw onboard --non-interactive --accept-risk || echo "Onboarding may have already completed"
+              
+              # Start gateway
+              echo "Starting gateway..."
+              openclaw gateway run 2>&1 &
+              
+              echo "Gateway started"
+              tail -f /dev/null
+          ports:
+            - name: openclaw
+              containerPort: {{ index .Values.sandbox.forwardPorts 0 }}
+              protocol: TCP
+          env:
+            {{- range .Values.env }}
+            - name: {{ .name }}
+              {{- if .value }}
+              value: {{ .value | quote }}
+              {{- else if .valueFrom }}
+              valueFrom:
+                {{- toYaml .valueFrom | nindent 16 }}
+              {{- end }}
+            {{- end }}
+            {{- if .Values.gateway.token }}
+            - name: OPENCLAW_GATEWAY_TOKEN
+              value: {{ .Values.gateway.token }}
+            {{- end }}
+            - name: OLLAMA_ENDPOINT
+              value: {{ .Values.inference.endpoint }}
+            - name: DEFAULT_MODEL
+              value: {{ .Values.inference.model }}
+            - name: DOMAIN_NAME
+              value: {{ .Values.ezua.virtualService.endpoint }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "nemoclaw.fullname" . }}-pvc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}

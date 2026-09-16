@@ -1,0 +1,101 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Default values for nemoclaw (SLVD demo copy).
+# Secrets and environment-specific endpoints are left as placeholders / empty.
+# Provide real values through the PCAI UI "values" form (or an EzAppConfig) at
+# deploy time — do not commit real credentials to this repo.
+
+replicaCount: 1
+
+# Sandbox image - pinned to specific digest
+sandbox:
+  image: ghcr.io/nvidia/openshell-community/sandboxes/openclaw@sha256:b3d832b596ab6b7184a9dcb4ae93337ca32851a4f93b00765cc12de26baa3a9a
+  name: openclaw
+  forwardPorts:
+    - 18789
+
+# Inference provider configuration.
+# Set endpoint/model to your in-cluster LLM (e.g. the litellm proxy the SLVD
+# engine also uses). credentialEnv names the env var that carries the key.
+inference:
+  providerType: custom
+  providerName: nvidia-inference
+  endpoint: "https://<inference-endpoint>/v1"   # e.g. the litellm proxy URL
+  model: "qwen3-8-27b-int4"                      # model alias served by the endpoint
+  credentialEnv: NVIDIA_API_KEY
+
+# Router configuration (optional - for model routing)
+router:
+  enabled: false
+  port: 4000
+
+# PCAI ezua configuration
+# ${DOMAIN_NAME} / ${NAMESPACE} are substituted by the EzAppConfig controller.
+# The dashboard is reachable at: nemoclaw.${DOMAIN_NAME}
+ezua:
+  domainName: "${DOMAIN_NAME}"
+  virtualService:
+    enabled: true
+    endpoint: "nemoclaw.${DOMAIN_NAME}"
+    istioGateway: "istio-system/ezaf-gateway"
+  authorizationPolicy:
+    namespace: "istio-system"
+    providerName: "oauth2-proxy"
+    matchLabels:
+      istio: "ingressgateway"
+
+# Resources
+resources:
+  limits:
+    cpu: "4"
+    memory: "8Gi"
+  requests:
+    cpu: "2"
+    memory: "4Gi"
+
+# Persistence
+persistence:
+  enabled: true
+  size: 20Gi
+  storageClass: ""
+  accessMode: ReadWriteMany
+  mountPath: /opt/nemoclaw
+
+# Environment variables.
+# The LLM credential is injected at deploy time (keep empty here).
+env:
+  - name: NEMOCLAW_PROVIDER
+    value: "custom"
+  - name: NVIDIA_API_KEY
+    value: ""
+  - name: NEMOCLAW_CONFIG_DIR
+    value: /opt/nemoclaw/config
+  - name: NEMOCLAW_DATA_DIR
+    value: /opt/nemoclaw/data
+
+# Security context
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# Service account configuration
+serviceAccount:
+  create: false
+  automount: false
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 18789
+
+# Gateway configuration (for OpenClaw gateway token).
+# Inject the real token at deploy time (keep empty here).
+gateway:
+  token: ""
+
+# Device pairing - set to approve all devices automatically
+pairing:
+  autoApprove: true

@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: v2
+name: nemoclaw
+description: NVIDIA NemoClaw - Reference stack for running OpenClaw in OpenShell sandboxes
+type: application
+keywords:
+  - nemoclaw
+  - openclaw
+  - openshell
+  - agent
+  - llm
+home: https://github.com/NVIDIA/NemoClaw
+sources:
+  - https://github.com/NVIDIA/NemoClaw
+maintainers:
+  - name: NVIDIA
+    url: https://github.com/NVIDIA
+version: 0.4.7
+appVersion: "0.1.0"

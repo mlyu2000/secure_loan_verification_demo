@@ -154,8 +154,12 @@ secure_loan_verification_demo/
 │   ├── Dockerfile       # engine + credit-memo-mcp shared image (context = repo root)
 │   ├── Dockerfile.portal# portal (Vite build + nginx)
 │   └── conftest.py      # pytest package resolution
-├── charts/slvd/         # Helm chart + EzAppConfig (PCAI BYOA deploy)
-├── slvd-0.9.1.tgz       # packaged helm chart (at repo root)
+├── charts/
+│   ├── slvd/            # SLVD Helm chart + EzAppConfig (PCAI BYOA deploy)
+│   └── nemoclaw/        # NemoClaw (OpenClaw agent) Helm chart — deployed first (prereq)
+├── slvd-0.9.9.tgz       # packaged SLVD helm chart (at repo root)
+├── nemoclaw-0.4.7.tgz   # packaged NemoClaw helm chart (at repo root)
+├── nemoclaw-icon.png    # NemoClaw chart icon (UI app tile logo)
 └── images/              # screenshots + architecture/business diagrams (html + png)
 ```
 
@@ -166,6 +170,23 @@ secure_loan_verification_demo/
 The demo is deployed by **importing the framework through the PCAI platform UI**
 (BYOA import) — no CLI `kubectl apply` of the EzAppConfig. The UI does the install:
 it pulls the chart from chartmuseum and applies the values you enter in the form.
+
+### Prerequisite — import the NemoClaw (agent) chart first
+
+The SLVD engine drives the agent through the **NemoClaw / OpenClaw gateway**, so the
+NemoClaw chart must be deployed **before** the SLVD chart (the engine connects to it via
+`SLVD_OPENCLAW_URL`). It is shipped in this repo:
+
+- Chart source: `charts/nemoclaw/` (Helm chart, icon at `nemoclaw/icon.png`)
+- Packaged: `nemoclaw-0.4.7.tgz` (repo root)
+- Icon: `nemoclaw-icon.png` (repo root — used as the UI app-tile logo)
+
+Push it to chartmuseum, then in the PCAI UI: Frameworks → *Import framework* (BYOA) →
+select the `nemoclaw` chart → fill in values (`ezua.domainName`/`${DOMAIN_NAME}`, the
+inference endpoint `inference.endpoint` + `inference.model`, `gateway.token`) → *Deploy*.
+This creates the `nemoclaw` namespace + the OpenClaw gateway service that SLVD targets.
+
+### Deploy the SLVD chart
 
 1. **Publish the artifacts** (one-off, from a dev machine):
 
@@ -178,8 +199,8 @@ it pulls the chart from chartmuseum and applies the values you enter in the form
    `slvd` chart version from chartmuseum → fill in the values:
    - image tag (from step 1) and `${DOMAIN_NAME}` for the ingress host
    - the `secrets` block: `litellmApiKey`, `jwtSecret`, `hmacSecret`, `openclawToken`
-   - agent/LLM endpoints: `SLVD_OPENCLAW_URL` (NemoClaw gateway service) and
-     `SLVD_LLM_BASE_URL` + `SLVD_LLM_MODEL` (litellm proxy)
+   - agent/LLM endpoints: `SLVD_OPENCLAW_URL` (NemoClaw gateway service, deployed in the
+     prerequisite above) and `SLVD_LLM_BASE_URL` + `SLVD_LLM_MODEL` (litellm proxy)
 
    → *Deploy*. The platform creates the namespace and the release.
 
