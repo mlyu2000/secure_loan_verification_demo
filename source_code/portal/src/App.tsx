@@ -717,14 +717,14 @@ function CaseForm({ cases, user, onGenerate, busy }: { cases: typeof CASES; user
           <span className="info-tip">
             <span className="info-icon" aria-label="How this works" title="How this works">i</span>
             <span className="info-pop">
-              <b>HOW THIS WORKS</b>
-              When you click <b>Generate</b>, the portal passes your authenticated identity and the selected
-              case ID to the platform. The <b>workflow engine</b> then drives the
-              <b> credit-memo-agent (LLM)</b>, which pulls data through <b>governed MCP tools</b> — every
-              bank-system read (CRM, credit exposure, transactions, compliance, prior memos) is
-              identity-checked and audit-logged. The LLM drafts the memo, the <b>policy engine</b>
-              evaluates it (amount threshold + KYC), and if approval is required the workflow pauses until
-              a senior officer approves.
+              <span className="info-title">HOW THIS WORKS</span>
+              <p>When you click <b>Generate</b>, the portal passes your authenticated identity and the selected case ID to the platform, then:</p>
+              <ol>
+                <li>The <b>workflow engine</b> drives the <b>credit-memo-agent (LLM)</b>, which pulls data through <b>governed MCP tools</b> — every bank-system read (CRM, credit exposure, transactions, compliance, prior memos) is identity-checked and audit-logged.</li>
+                <li>The LLM <b>drafts the memo</b> using the verified data.</li>
+                <li>The <b>policy engine</b> evaluates it (amount threshold + KYC).</li>
+                <li>If approval is required, the workflow <b>pauses</b> until a senior officer approves.</li>
+              </ol>
             </span>
           </span>
         </div>

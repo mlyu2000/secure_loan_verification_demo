@@ -108,6 +108,16 @@ body {
   z-index: 50;
 }
 .info-pop b { color: #fff; font-weight: 700; }
+.info-pop .info-title {
+  display: block; font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  color: #93c5fd; margin-bottom: 8px;
+}
+.info-pop p { margin: 0 0 8px; }
+.info-pop ol {
+  margin: 0; padding-left: 18px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.info-pop ol li { line-height: 1.5; }
 .info-tip:hover .info-pop, .info-tip:focus-within .info-pop { display: block; }
 /* small pointer notch */
 .info-pop::before {
