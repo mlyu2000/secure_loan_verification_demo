@@ -26,6 +26,11 @@ class Settings:
     llm_api_key: str = os.environ.get("SLVD_LLM_API_KEY", "")
     llm_model: str = os.environ.get("SLVD_LLM_MODEL", "qwen3-8-27b-int4-dflash2")
     llm_timeout_s: float = float(os.environ.get("SLVD_LLM_TIMEOUT_S", "180"))
+    # Reasoning effort for reasoning-model backends: "low" (default) or "none".
+    # "none" fully disables chain-of-thought (fastest; content-only). On qwen3 this
+    # maps to enable_thinking=false. "low" caps the thinking budget. Set to "" to
+    # send no reasoning parameter at all (let the model decide).
+    llm_reasoning_effort: str = os.environ.get("SLVD_LLM_REASONING_EFFORT", "low")
     max_llm_rounds: int = int(os.environ.get("SLVD_MAX_LLM_ROUNDS", "12"))
 
     # Simulation

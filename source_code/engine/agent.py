@@ -114,16 +114,8 @@ def draft_llm(case: dict, data: dict, requested_amount_usd: int) -> AgentResult:
 
 
 def _chat(messages: list[dict]) -> str:
-    r = httpx.post(
-        f"{settings.llm_base_url}/chat/completions",
-        headers={"Authorization": f"Bearer {settings.llm_api_key}"},
-        json={"model": settings.llm_model, "messages": messages, "max_tokens": 4096,
-              "temperature": 0.2},
-        timeout=settings.llm_timeout_s,
-    )
-    r.raise_for_status()
-    content = r.json()["choices"][0]["message"].get("content")
-    return (content or "").strip()
+    from .llm import chat
+    return chat(messages, max_tokens=4096, temperature=0.2)
 
 
 # ---------- openclaw (NemoClaw runtime on HPE PCAI) ----------

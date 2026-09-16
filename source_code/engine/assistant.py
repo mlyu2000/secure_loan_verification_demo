@@ -12,8 +12,6 @@ from __future__ import annotations
 import json
 import re
 
-import httpx
-
 # ---------- knowledge base (demo facts only) ----------
 
 WHAT = """SLVD (Secure Loan Verification Demo) shows a governed, human-in-the-loop AI
@@ -229,28 +227,19 @@ def _system_prompt() -> str:
 
 def _llm_answer(message: str) -> str | None:
     from .config import settings
+    from .llm import chat
     if settings.simulation or not settings.llm_api_key:
         return None
     try:
-        r = httpx.post(
-            f"{settings.llm_base_url}/chat/completions",
-            headers={"Authorization": f"Bearer {settings.llm_api_key}"},
-            json={
-                "model": settings.llm_model,
-                "messages": [
-                    {"role": "system", "content": _system_prompt()},
-                    {"role": "user", "content": message},
-                ],
-                "max_tokens": 700,
-                "temperature": 0.4,
-                # qwen3: disable thinking mode so content is populated (not reasoning)
-                "chat_template_kwargs": {"enable_thinking": False},
-            },
+        content = chat(
+            [
+                {"role": "system", "content": _system_prompt()},
+                {"role": "user", "content": message},
+            ],
+            max_tokens=700,
+            temperature=0.4,
             timeout=min(settings.llm_timeout_s, 60),
         )
-        r.raise_for_status()
-        m = r.json()["choices"][0]["message"]
-        content = (m.get("content") or m.get("reasoning") or "").strip()
         return content or None
     except Exception:  # noqa: BLE001 — fall back to rule-based on any LLM error
         return None
