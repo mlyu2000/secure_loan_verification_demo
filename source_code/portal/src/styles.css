@@ -85,6 +85,37 @@ body {
   box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
 }
 .card h2 { margin: 0 0 14px; font-size: 15px; font-weight: 700; }
+.card .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 2px; }
+.card .card-head h2 { margin: 0; }
+
+/* "how this works" tooltip on the Case Selection tile */
+.info-tip { position: relative; display: inline-flex; }
+.info-icon {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--blue); color: #fff; font-size: 12px; font-weight: 700;
+  font-style: italic; font-family: Georgia, "Times New Roman", serif;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: help; line-height: 1;
+}
+.info-icon:hover { background: #1d4ed8; }
+.info-pop {
+  display: none; position: absolute; right: 0; top: calc(100% + 8px);
+  width: 320px; max-width: 70vw;
+  background: #0f1e3a; color: #e8eef7; border: 1px solid #24344f;
+  border-radius: 10px; padding: 12px 14px;
+  font-size: 12.5px; line-height: 1.55; text-align: left; font-weight: 400;
+  box-shadow: 0 14px 34px rgba(15, 30, 58, .35);
+  z-index: 50;
+}
+.info-pop b { color: #fff; font-weight: 700; }
+.info-tip:hover .info-pop, .info-tip:focus-within .info-pop { display: block; }
+/* small pointer notch */
+.info-pop::before {
+  content: ""; position: absolute; top: -6px; right: 6px;
+  width: 10px; height: 10px; background: #0f1e3a;
+  border-left: 1px solid #24344f; border-top: 1px solid #24344f;
+  transform: rotate(45deg);
+}
 .card .section-label { font-size: 11px; letter-spacing: .08em; color: var(--muted); font-weight: 700; margin: 4px 0 10px; }
 
 /* banner */

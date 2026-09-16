@@ -115,7 +115,7 @@ export default function App() {
   const [snap, setSnap] = useState<RunSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [chatOpen, setChatOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
   const [memo, setMemo] = useState<string | null>(null);
   const [expandedAudit, setExpandedAudit] = useState<Set<number>>(new Set());
   const [fromConsole, setFromConsole] = useState(false);
@@ -712,7 +712,22 @@ function CaseForm({ cases, user, onGenerate, busy }: { cases: typeof CASES; user
         <div className="row"><span className="k">Employee ID</span><span className="v">{user.employee_id}</span></div>
       </div>
       <div className="card">
-        <h2>Case Selection</h2>
+        <div className="card-head">
+          <h2>Case Selection</h2>
+          <span className="info-tip">
+            <span className="info-icon" aria-label="How this works" title="How this works">i</span>
+            <span className="info-pop">
+              <b>HOW THIS WORKS</b>
+              When you click <b>Generate</b>, the portal passes your authenticated identity and the selected
+              case ID to the platform. The <b>workflow engine</b> then drives the
+              <b> credit-memo-agent (LLM)</b>, which pulls data through <b>governed MCP tools</b> — every
+              bank-system read (CRM, credit exposure, transactions, compliance, prior memos) is
+              identity-checked and audit-logged. The LLM drafts the memo, the <b>policy engine</b>
+              evaluates it (amount threshold + KYC), and if approval is required the workflow pauses until
+              a senior officer approves.
+            </span>
+          </span>
+        </div>
         <div className="field"><label>Case ID</label>
           <select id="caseId" value={sel} onChange={(e) => setSel(e.target.value)}>
             {cases.map((x) => <option key={x.id} value={x.id}>{x.id}</option>)}
@@ -725,16 +740,6 @@ function CaseForm({ cases, user, onGenerate, busy }: { cases: typeof CASES; user
         <button className="btn-primary" onClick={onGenerate} disabled={busy}>
           {busy ? "Generating…" : "▶ Generate renewal decision memo"}
         </button>
-      </div>
-      <div className="how">
-        <b>HOW THIS WORKS</b><br />
-        When you click <b>Generate</b>, the portal passes your authenticated identity and the selected
-        case ID to the platform. The <b>workflow engine</b> then drives the
-        <b> credit-memo-agent (LLM)</b>, which pulls data through <b>governed MCP tools</b> — every
-        bank-system read (CRM, credit exposure, transactions, compliance, prior memos) is
-        identity-checked and audit-logged. The LLM drafts the memo, the <b>policy engine</b>
-        evaluates it (amount threshold + KYC), and if approval is required the workflow pauses until
-        a senior officer approves.
       </div>
     </>
   );
