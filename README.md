@@ -14,7 +14,7 @@ credit officer makes the final call on large or risky cases. Every step is audit
 - **Business readers**: start with [How it works (business view)](#how-it-works-business-view),
   then [Who does what](#who-does-what), then [Why it matters](#why-it-matters).
 - **Technical readers**: jump to [Architecture](#architecture) and
-  [Deployment](#deployment-on-hpe-private-cloud-ai-cs1).
+  [Deployment](#deployment-on-hpe-private-cloud-ai).
 
 Both diagrams below are interactive HTML + static PNG:
 
@@ -70,12 +70,13 @@ analyst (Nick) starts the case. From there:
 
 ### Technical overview
 
-The system runs on **HPE Private Cloud AI (CS1)** as four pods in the `slvd` Kubernetes
-namespace, with the AI agent in `nemoclaw` and the LLM in `project-user-aieadmin`.
+The system runs on **HPE Private Cloud AI (PCAI)** as pods in a dedicated Kubernetes
+namespace (`slvd`), with the AI agent and the LLM as separate in-cluster services whose
+endpoints are configured via chart values.
 
 ![Technical architecture](images/slvd-technical-architecture.png)
 
-**Core components (ns `slvd`):**
+**Core components:**
 
 | Component | Tech | Port | Responsibility |
 |---|---|---|---|
@@ -87,10 +88,10 @@ namespace, with the AI agent in `nemoclaw` and the LLM in `project-user-aieadmin
 
 **AI layer:**
 
-| Component | Where | Responsibility |
-|---|---|---|
-| **OpenClaw agent** (NemoClaw) | ns `nemoclaw` | The generative step — pulls data via the `bank-credit` skill and drafts the memo |
-| **litellm-helm** → **qwen3-8-27b** | ns `project-user-aieadmin` | LLM inference (Knative int4 on GPU) |
+| Component | Responsibility |
+|---|---|
+| **OpenClaw agent** (NemoClaw) | The generative step — pulls data via the `bank-credit` skill and drafts the memo |
+| **litellm proxy** → **qwen3-8-27b** | LLM inference (int4 on GPU) |
 
 ### Why both a FastAPI engine *and* an OpenClaw agent?
 
@@ -160,30 +161,12 @@ secure_loan_verification_demo/
 
 ---
 
-## Quick start (local, no cluster)
+## Deployment (HPE Private Cloud AI)
 
-```bash
-python3 -m venv venv && source venv/bin/activate
-pip install -r source_code/requirements.txt
-cd source_code/portal && npm install && npm run build && cd ../..
-
-make -f source_code/Makefile test-unit      # engine + mcp unit tests (25)
-make -f source_code/Makefile test-e2e       # 8 local simulation scenarios (S1–S8)
-```
-
-In **simulation mode** (`SLVD_SIMULATION=1`, default for the local e2e) the approver auto-approves.
-Set `SLVD_SIMULATION=0` to require a real human decision (the production path).
-
-> **Make note:** the only Makefile lives at `source_code/Makefile` (there is no root
-> wrapper anymore). Run it as `make -f source_code/Makefile <target>`, or `cd source_code`
-> first and use plain `make <target>`. All targets (venv/test/build/chart/deploy/…) already
-> resolve paths relative to the repo root, so they work from either location.
-
----
-
-## Deployment (HPE Private Cloud AI CS1)
-
-The demo is deployed as a BYOA **EzAppConfig** (the CS1 platform install trigger).
+The demo is deployed as a BYOA **EzAppConfig** (the PCAI platform install trigger).
+Chart values are platform-agnostic: hosts use `${DOMAIN_NAME}` (substituted by the
+EzAppConfig controller), and the agent/LLM endpoints are plain in-cluster service URLs
+set in `charts/slvd/values.yaml` (`SLVD_OPENCLAW_URL`, `SLVD_LLM_BASE_URL`).
 
 ```bash
 make -f source_code/Makefile venv
@@ -195,12 +178,18 @@ make -f source_code/Makefile verify              # external URL + agent + LLM he
 make -f source_code/Makefile demo-run            # one fresh end-to-end run via the portal API
 ```
 
-- **External URLs** (Istio VirtualService on `istio-system/ezaf-gateway`):
-  - Portal: `https://slvd.aie.cs1.ctc.sg.lab`
-  - Mail:   `https://slvd-mail.aie.cs1.ctc.sg.lab`
+> **Make note:** the only Makefile lives at `source_code/Makefile` (there is no root
+> wrapper anymore). Run it as `make -f source_code/Makefile <target>`, or `cd source_code`
+> first and use plain `make <target>`. All targets (venv/test/build/chart/deploy/…) already
+> resolve paths relative to the repo root, so they work from either location.
+
+- **External URLs**: an Istio VirtualService on the platform ingress gateway
+  (`istio-system/ezaf-gateway`) exposes
+  - Portal: `https://slvd.${DOMAIN_NAME}`
+  - Mail:   `https://slvd-mail.${DOMAIN_NAME}`
 - **Pods**: exactly 4 (1 per component) — portal, engine, credit-memo-mcp, mailpit.
-- **Agent backend**: `SLVD_AGENT_BACKEND=openclaw` → the NemoClaw gateway in ns `nemoclaw`.
-- **LLM**: `SLVD_LLM_MODEL=qwen3-8-27b-int4-dflash2-r2` via the litellm proxy.
+- **Agent backend**: `SLVD_AGENT_BACKEND=openclaw` → the NemoClaw gateway service.
+- **LLM**: `SLVD_LLM_MODEL` via the litellm proxy at `SLVD_LLM_BASE_URL`.
 
 ### Default users (demo)
 
