@@ -199,7 +199,7 @@ def phase_fix(state: dict) -> tuple[bool, str]:
 
 
 def phase_build(state: dict) -> tuple[bool, str]:
-    ok, out = run_cmd(["make", "build"], timeout=PHASE_CAP_S)
+    ok, out = run_cmd(["make", "-f", "source_code/Makefile", "build"], timeout=PHASE_CAP_S)
     return ok == 0, out
 
 
@@ -299,7 +299,7 @@ def phase_deploy(state: dict) -> tuple[bool, str]:
         f.write(_to_yaml(vals))
     # 2. images
     ver = state.get("chart_version", "0.1.0")
-    ok, out = run_cmd(["make", "build-images", f"IMG=registry.ctc.sg.lab:5000/slvd", f"VER={ver}"],
+    ok, out = run_cmd(["make", "-f", "source_code/Makefile", "build-images", f"IMG=registry.ctc.sg.lab:5000/slvd", f"VER={ver}"],
                       timeout=PHASE_CAP_S)
     if ok != 0:
         return False, f"image build/push failed:\n{out[-1500:]}"
@@ -331,7 +331,7 @@ def phase_deploy(state: dict) -> tuple[bool, str]:
     with open(ezf, "w") as f:
         f.write(ez)
     # 5. deploy
-    ok, out = run_cmd(["make", "deploy", f"KUBE={os.environ.get('KUBECONFIG', '/home/ml/projects/kubeconfig-cs1.conf')}"],
+    ok, out = run_cmd(["make", "-f", "source_code/Makefile", "deploy", f"KUBE={os.environ.get('KUBECONFIG', '/home/ml/projects/kubeconfig-cs1.conf')}"],
                       timeout=PHASE_CAP_S)
     if ok != 0:
         return False, f"make deploy: {out[-1500:]}"
@@ -458,7 +458,7 @@ def run_iteration(state: dict, cluster_ok: bool) -> str:
         if state["green_streak"] >= 2 and it % 3 == 0:
             # reproducibility spot-check (A12): clean redeploy
             log("reproducibility check: make clean && deploy")
-            ok, out = run_cmd(["make", "clean", "KUBE=" + os.environ.get("KUBECONFIG",
+            ok, out = run_cmd(["make", "-f", "source_code/Makefile", "clean", "KUBE=" + os.environ.get("KUBECONFIG",
                                    "/home/ml/projects/kubeconfig-cs1.conf")], timeout=600)
             ok2, out2 = run_cmd(["bash", os.path.join(ROOT, "source_code", "e2e", "verify_cluster.sh")],
                                 timeout=PHASE_CAP_S)

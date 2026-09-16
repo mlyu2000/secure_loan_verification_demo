@@ -148,15 +148,14 @@ secure_loan_verification_demo/
 │   ├── e2e/             # 8-scenario end-to-end suite + cluster verify + demo-run
 │   ├── orchestrate/     # autonomous build/test/deploy loop (gates, loop)
 │   ├── mockdata/        # the five bank-system fixtures (CRM, credit, txn, compliance, memo)
-│   ├── Makefile         # real entry point: test / build / deploy / verify / clean
+│   ├── Makefile         # entry point: test / build / deploy / verify / clean
+│   ├── requirements.txt # python deps (installed into the root venv/)
 │   ├── Dockerfile       # engine + credit-memo-mcp shared image (context = repo root)
 │   ├── Dockerfile.portal# portal (Vite build + nginx)
 │   └── conftest.py      # pytest package resolution
 ├── charts/slvd/         # Helm chart + EzAppConfig (PCAI BYOA deploy)
 ├── slvd-0.9.1.tgz       # packaged helm chart (at repo root)
-├── images/              # screenshots + architecture/business diagrams (html + png)
-├── Makefile             # thin wrapper — delegates to source_code/Makefile
-├── requirements.txt
+└── images/              # screenshots + architecture/business diagrams (html + png)
 ```
 
 ---
@@ -165,15 +164,20 @@ secure_loan_verification_demo/
 
 ```bash
 python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
+pip install -r source_code/requirements.txt
 cd source_code/portal && npm install && npm run build && cd ../..
 
-make test-unit      # engine + mcp unit tests (25)
-make test-e2e       # 8 local simulation scenarios (S1–S8)
+make -f source_code/Makefile test-unit      # engine + mcp unit tests (25)
+make -f source_code/Makefile test-e2e       # 8 local simulation scenarios (S1–S8)
 ```
 
 In **simulation mode** (`SLVD_SIMULATION=1`, default for the local e2e) the approver auto-approves.
 Set `SLVD_SIMULATION=0` to require a real human decision (the production path).
+
+> **Make note:** the only Makefile lives at `source_code/Makefile` (there is no root
+> wrapper anymore). Run it as `make -f source_code/Makefile <target>`, or `cd source_code`
+> first and use plain `make <target>`. All targets (venv/test/build/chart/deploy/…) already
+> resolve paths relative to the repo root, so they work from either location.
 
 ---
 
@@ -182,13 +186,13 @@ Set `SLVD_SIMULATION=0` to require a real human decision (the production path).
 The demo is deployed as a BYOA **EzAppConfig** (the CS1 platform install trigger).
 
 ```bash
-make venv
-make test-unit && make test-e2e
-make build-images        # build + push engine/mcp + portal to the registry
-make chart               # helm lint + package + push to chartmuseum
-make deploy              # create ns, apply EzAppConfig, wait for pods
-make verify              # external URL + agent + LLM health checks
-make demo-run            # one fresh end-to-end run via the portal API
+make -f source_code/Makefile venv
+make -f source_code/Makefile test-unit && make -f source_code/Makefile test-e2e
+make -f source_code/Makefile build-images        # build + push engine/mcp + portal to the registry
+make -f source_code/Makefile chart               # helm lint + package + push to chartmuseum
+make -f source_code/Makefile deploy              # create ns, apply EzAppConfig, wait for pods
+make -f source_code/Makefile verify              # external URL + agent + LLM health checks
+make -f source_code/Makefile demo-run            # one fresh end-to-end run via the portal API
 ```
 
 - **External URLs** (Istio VirtualService on `istio-system/ezaf-gateway`):
@@ -211,8 +215,8 @@ make demo-run            # one fresh end-to-end run via the portal API
 
 The demo is validated by real runs, not by reading the code:
 
-- **Unit**: `make test-unit` → 25 pass (engine + mcp).
-- **E2E**: `make test-e2e` → 8/8 scenarios (S1–S8).
+- **Unit**: `make -f source_code/Makefile test-unit` → 25 pass (engine + mcp).
+- **E2E**: `make -f source_code/Makefile test-e2e` → 8/8 scenarios (S1–S8).
 - **Live**: a real run through the openclaw agent → governed MCP → approval gate →
   approver decision → published memo → client email, with every step in the audit trail.
 

@@ -38,7 +38,7 @@ help:
 
 venv:
 	cd $(ROOT) && python3 -m venv venv
-	$(ROOT)/venv/bin/pip install -q -r $(ROOT)/requirements.txt
+	$(ROOT)/venv/bin/pip install -q -r $(SRC)/requirements.txt
 	cd $(SRC)/portal && npm install --no-audit --no-fund
 
 test-unit:
