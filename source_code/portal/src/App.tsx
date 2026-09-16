@@ -687,11 +687,6 @@ function Login({ onLogin, error }: { onLogin: (u: string, p: string) => void; er
         </button>
         <div className="how" style={{ marginTop: 14 }}>
           Demo credentials — Analyst: <b>nick / analyst123</b> · Senior Credit Officer: <b>sarah / officer123</b>
-          <br />
-          <span style={{ opacity: .8 }}>
-            Analyst = <b>Nick Johnson</b> (Risk Analyst · E102938) · Officer = Sarah Chen (Senior Credit Officer · E200145)
-          </span>
-          <br /><span style={{ opacity: .75 }}>nick requests memos; sarah governs (approves/rejects) the ones that cross the policy gate.</span>
         </div>
       </div>
     </div>
