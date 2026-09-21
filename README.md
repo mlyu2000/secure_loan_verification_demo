@@ -157,7 +157,7 @@ secure_loan_verification_demo/
 ├── charts/
 │   ├── slvd/            # SLVD Helm chart + EzAppConfig (PCAI BYOA deploy)
 │   └── nemoclaw/        # NemoClaw (OpenClaw agent) Helm chart — deployed first (prereq)
-├── slvd-0.11.0.tgz      # packaged SLVD helm chart (at repo root)
+├── slvd-0.11.1.tgz      # packaged SLVD helm chart (at repo root)
 ├── nemoclaw-0.2.6.tgz   # packaged NemoClaw helm chart (at repo root)
 ├── nemoclaw-icon.png    # NemoClaw chart icon (UI app tile logo)
 ├── slvd-icon.png        # SLVD app icon (UI app tile logo)
