@@ -1,101 +1,117 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-
-# Default values for nemoclaw (SLVD demo copy).
-# Secrets and environment-specific endpoints are left as placeholders / empty.
-# Provide real values through the PCAI UI "values" form (or an EzAppConfig) at
-# deploy time — do not commit real credentials to this repo.
+# NemoClaw PCAI Helm chart — pick ONE agent: openclaw (default) or hermes.
+# Mutually exclusive: exactly one agent container per pod.
+# Both agents can use the same Telegram bot token (top-level telegram.* block)
+# and the same LiteLLM endpoint.
+#
+# Backward-compatible: default agent = openclaw (the prior chart behavior).
 
 replicaCount: 1
 
-# Sandbox image - pinned to specific digest
-sandbox:
-  image: ghcr.io/nvidia/openshell-community/sandboxes/openclaw@sha256:b3d832b596ab6b7184a9dcb4ae93337ca32851a4f93b00765cc12de26baa3a9a
-  name: openclaw
-  forwardPorts:
-    - 18789
+# ── Agent selector ───────────────────────────────────────────────────────────
+# Exactly one of:
+#   openclaw  — NemoClaw / OpenClaw gateway (dashboard on port 18789, LLM via
+#               litellm, Telegram via openclaw channel).
+#   hermes    — Hermes Agent (Nous Research, OpenAI-compatible API on port
+#               8642 + web dashboard on port 18790, Telegram via hermes
+#               platform). Uses the NemoClaw Hermes sandbox image.
+agent: openclaw
 
-# Inference provider configuration.
-# Set endpoint/model to your in-cluster LLM (e.g. the litellm proxy the SLVD
-# engine also uses). credentialEnv names the env var that carries the key.
-inference:
-  providerType: custom
-  providerName: nvidia-inference
-  endpoint: "https://<inference-endpoint>/v1"   # e.g. the litellm proxy URL
-  model: "qwen3-8-27b-int4"                      # model alias served by the endpoint
-  credentialEnv: NVIDIA_API_KEY
+# ── Container image (OpenClaw) ───────────────────────────────────────────────
+image:
+  repository: ghcr.io/nvidia/openshell-community/sandboxes/openclaw
+  tag: latest
+  digest: sha256:b3d832b596ab6b7184a9dcb4ae93337ca32851a4f93b00765cc12de26baa3a9a
+  pullPolicy: IfNotPresent
 
-# Router configuration (optional - for model routing)
-router:
-  enabled: false
-  port: 4000
+# ── Gateway (OpenClaw dashboard) ─────────────────────────────────────────────
+gateway:
+  port: 18789
+  bind: lan
+  token: "2ce72907d71e7888fa14ec36065f1b56e36282922acbe4caab7a1f6831f5af19"
+  dangerouslyDisableDeviceAuth: true
+  allowedOrigins: "*"
 
-# PCAI ezua configuration
-# ${DOMAIN_NAME} / ${NAMESPACE} are substituted by the EzAppConfig controller.
-# The dashboard is reachable at: nemoclaw.${DOMAIN_NAME}
-ezua:
-  domainName: "${DOMAIN_NAME}"
-  virtualService:
-    enabled: true
-    endpoint: "nemoclaw.${DOMAIN_NAME}"
-    istioGateway: "istio-system/ezaf-gateway"
-  authorizationPolicy:
-    namespace: "istio-system"
-    providerName: "oauth2-proxy"
-    matchLabels:
-      istio: "ingressgateway"
+litellm:
+  # REQUIRED — the full URL of your OpenAI-compatible LLM endpoint.
+  # Examples:
+  #   litellm proxy:    "http://litellm-helm.project-user-aieadmin.svc.cluster.local:4000/v1"
+  #   direct endpoint:  "https://llama-3-1-8b-instruct.project-user-aieadmin.serving.aie.cs1.ctc.sg.lab/v1"
+  baseUrl: ""
+  model: "qwen3-8-27b-int4-dflash2-r2"
+  contextWindow: 131072
+  maxTokens: 8192
+  apiKey: "CHANGE_ME-litellm-master-key"
+# ── Dashboard UI root (OpenClaw only) ────────────────────────────────────────
+ui:
+  root: "/sandbox/.openclaw/ui"
 
-# Resources
-resources:
-  limits:
-    cpu: "4"
-    memory: "8Gi"
-  requests:
-    cpu: "2"
-    memory: "4Gi"
-
-# Persistence
-persistence:
+# ── Telegram (shared by both agents) ─────────────────────────────────────────
+telegram:
   enabled: true
-  size: 20Gi
-  storageClass: ""
-  accessMode: ReadWriteMany
-  mountPath: /opt/nemoclaw
+  allowAll: true
+  botToken: "CHANGE_ME-telegram-bot-token"
+  testChatId: ""
+  testMessage: "NemoClaw Telegram channel is online (one-off validation)"
 
-# Environment variables.
-# The LLM credential is injected at deploy time (keep empty here).
-env:
-  - name: NEMOCLAW_PROVIDER
-    value: "custom"
-  - name: NVIDIA_API_KEY
-    value: ""
-  - name: NEMOCLAW_CONFIG_DIR
-    value: /opt/nemoclaw/config
-  - name: NEMOCLAW_DATA_DIR
-    value: /opt/nemoclaw/data
+# ── Hermes Agent (used when agent: hermes) ───────────────────────────────────
+hermes:
+  image:
+    repository: ghcr.io/nvidia/nemoclaw/hermes-sandbox
+    tag: latest
+    digest: sha256:0d07845fa3b02a0657d28e134eb2e1f4a96cc6260e2538f3d4eafe831c7e5c17
+    pullPolicy: IfNotPresent
+  apiPort: 8642
+  dashboardPort: 18790
+  apiServerKey: "3b0e2d1e493fd23540d01cc40b56f1b63e05bf8da223035fb1732f902087c817"
+  model: "qwen3-8-27b-int4-dflash2-r2"
+  # Dashboard basic-auth (required: hermes refuses to bind 0.0.0.0 without an
+  # auth provider). Enable by default so the dashboard port is usable; the
+  # password is generated at install unless you pin one here.
+  dashboardAuth:
+    enabled: true
+    username: "admin"
+    password: ""  # empty -> random 24-char password generated at install
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
 
-# Security context
-securityContext:
-  runAsUser: 1000
-  runAsGroup: 1000
-  fsGroup: 1000
-
-# Service account configuration
-serviceAccount:
-  create: false
-  automount: false
-
-# Service configuration
+# ── Service ──────────────────────────────────────────────────────────────────
 service:
   type: ClusterIP
   port: 80
   targetPort: 18789
+  hermesApiPort: 8642
 
-# Gateway configuration (for OpenClaw gateway token).
-# Inject the real token at deploy time (keep empty here).
-gateway:
-  token: ""
+ingress:
+  enabled: true
 
-# Device pairing - set to approve all devices automatically
-pairing:
-  autoApprove: true
+ezua:
+  virtualService:
+    endpoint: "${RELEASE_NAME}.${DOMAIN_NAME}"
+    istioGateway: "istio-system/ezaf-gateway"
+
+persistence:
+  enabled: true
+  # Empty -> auto-detect the cluster default StorageClass (annotation
+  # storageclass.kubernetes.io/is-default-class=true).
+  storageClassName: ""
+  size: 10Gi
+
+# ── Resources (OpenClaw gateway) ────────────────────────────────────────────
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 2Gi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+istioInjection: true
