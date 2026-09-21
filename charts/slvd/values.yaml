@@ -44,22 +44,21 @@ engine:
   env:
     # agent backend: stub (sim) | direct_llm (real) | openclaw (NemoClaw runtime on PCAI)
     SLVD_AGENT_BACKEND: "openclaw"
-    # NemoClaw/OpenClaw gateway (WS): engine -> agent turn (method=agent)
-    # fallback only — the chart auto-detects the real nemoclaw-openclaw
-    # Service FQDN in-cluster at install time and overrides this when found
-    SLVD_OPENCLAW_URL: "ws://nemoclaw-openclaw.nemoclaw.svc:80"
-    SLVD_SIMULATION: "0"
+    # Backend credentials — only consumed when the matching backend is active:
+    #   SLVD_LLM_API_KEY    used when SLVD_AGENT_BACKEND=direct_llm (litellm master key)
+    #   SLVD_OPENCLAW_TOKEN used when SLVD_AGENT_BACKEND=openclaw  (gateway token)
+    # LLM (direct_llm)
     SLVD_LLM_BASE_URL: "http://litellm-helm.project-user-aieadmin.svc.cluster.local:4000/v1"
     SLVD_LLM_MODEL: "qwen3-8-27b-int4-dflash2-r2"
     SLVD_LLM_TIMEOUT_S: "300"
+    SLVD_LLM_API_KEY: ""
+    # OpenClaw gateway (openclaw)
+    SLVD_OPENCLAW_URL: "ws://nemoclaw-openclaw.nemoclaw.svc:80"
+    SLVD_OPENCLAW_TOKEN: ""
+    # workflow + mail
+    SLVD_SIMULATION: "0"
     SLVD_APPROVER_EMAIL: "Sarah.Chen@mybank.com"
     SLVD_CLIENT_EMAIL: "client@acme-industrial.example"
-    # Backend credentials — only consumed when the matching backend is active;
-    # auto-detected from in-cluster owners when left empty (see _helpers.tpl):
-    #   SLVD_LLM_API_KEY    used when SLVD_AGENT_BACKEND=direct_llm (litellm master key)
-    #   SLVD_OPENCLAW_TOKEN used when SLVD_AGENT_BACKEND=openclaw  (gateway token)
-    SLVD_LLM_API_KEY: ""
-    SLVD_OPENCLAW_TOKEN: ""
   resources:
     requests: { cpu: 100m, memory: 128Mi }
     limits: { cpu: 500m, memory: 256Mi }
