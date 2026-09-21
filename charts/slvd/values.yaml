@@ -1,6 +1,8 @@
-# SLVD chart values. The 'secrets' block below holds sensitive values: keep the
-# committed defaults EMPTY. Real values are injected at deploy time via the
-# EzAppConfig 'values' block (charts/slvd/ezappconfig.generated.yaml, gitignored).
+# SLVD chart values. Sensitive/endpoint values may be left EMPTY (zero-input
+# deploy): backend credentials under engine.env auto-detect from the owning
+# in-cluster apps when empty; signing keys are generated deterministically.
+# Real overrides are injected at deploy time via the EzAppConfig values block
+# (charts/slvd/ezappconfig.generated.yaml, gitignored).
 global:
   namespace: slvd
   imageRegistry: docker.io/eric021122
@@ -52,6 +54,12 @@ engine:
     SLVD_LLM_TIMEOUT_S: "300"
     SLVD_APPROVER_EMAIL: "Sarah.Chen@mybank.com"
     SLVD_CLIENT_EMAIL: "client@acme-industrial.example"
+    # Backend credentials — only consumed when the matching backend is active;
+    # auto-detected from in-cluster owners when left empty (see _helpers.tpl):
+    #   SLVD_LLM_API_KEY    used when SLVD_AGENT_BACKEND=direct_llm (litellm master key)
+    #   SLVD_OPENCLAW_TOKEN used when SLVD_AGENT_BACKEND=openclaw  (gateway token)
+    SLVD_LLM_API_KEY: ""
+    SLVD_OPENCLAW_TOKEN: ""
   resources:
     requests: { cpu: 100m, memory: 128Mi }
     limits: { cpu: 500m, memory: 256Mi }
@@ -78,18 +86,9 @@ mailpit:
     requests: { cpu: 50m, memory: 64Mi }
     limits: { cpu: 200m, memory: 128Mi }
 
-# Secrets — the UI form may be left COMPLETELY EMPTY (zero-input deploy):
-#   litellmApiKey  auto-detected from the in-cluster litellm-helm-masterkey Secret
-#   openclawToken  auto-detected from NemoClaw's openclaw.json ConfigMap
-#   jwtSecret      deterministic sha256(release coords) when empty
-#   hmacSecret     deterministic sha256(release coords) when empty
-# Any non-empty value entered in the form always overrides auto-detection.
-# No K8s Secret objects — plain env vars only.
-secrets:
-  litellmApiKey: ""
-  jwtSecret: ""
-  hmacSecret: ""
-  openclawToken: ""
+# (Removed `secrets:` block — signing keys are generated deterministically
+# from the release coordinates; backend credentials live under engine.env and
+# are auto-detected when empty. No K8s Secret objects — plain env vars only.)
 
 persistence:
   enabled: true

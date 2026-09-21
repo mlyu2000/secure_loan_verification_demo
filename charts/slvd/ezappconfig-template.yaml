@@ -1,6 +1,6 @@
 # EzAppConfig — the CS1 platform install trigger for the slvd chart.
 # The loop generates ezappconfig.generated.yaml (gitignored) at deploy time with
-# real values incl. secrets. This committed template has placeholders.
+# real values (endpoints + optional credential overrides). Template is placeholders.
 apiVersion: ezconfig.hpe.ezaf.com/v1alpha1
 kind: EzAppConfig
 metadata:

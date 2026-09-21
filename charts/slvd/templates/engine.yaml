@@ -40,9 +40,16 @@ spec:
               value: "1025"
             - name: SLVD_BASE_URL
               value: https://{{ .Values.ingress.host }}
+            {{- $env := .Values.engine.env }}
+            {{- $backend := $env.SLVD_AGENT_BACKEND | default "stub" }}
             {{- $ocUrl := include "slvd.openclawUrl" . }}
             {{- $llmUrl := include "slvd.llmBaseUrl" . }}
-            {{- range $k, $v := .Values.engine.env }}
+            {{- /* keys emitted individually below (backend-conditional /
+                   generated) — skipped in the generic range to avoid
+                   duplicates. */ -}}
+            {{- $special := list "SLVD_LLM_API_KEY" "SLVD_OPENCLAW_TOKEN" "SLVD_JWT_SECRET" "SLVD_HMAC_SECRET" }}
+            {{- range $k, $v := $env }}
+            {{- if not (has $k $special) }}
             {{- if and (eq $k "SLVD_OPENCLAW_URL") $ocUrl }}
             - name: SLVD_OPENCLAW_URL
               value: {{ $ocUrl | quote }}
@@ -54,16 +61,37 @@ spec:
               value: {{ $v | quote }}
             {{- end }}
             {{- end }}
+            {{- end }}
+            {{- /* backend credential: emitted ONLY for the matching backend.
+                   engine.env value (non-empty) = operator override; empty ->
+                   auto-detect from the in-cluster owning app. */ -}}
+            {{- if eq $backend "direct_llm" }}
             - name: SLVD_LLM_API_KEY
               value: {{ include "slvd.secret.litellmApiKey" . | quote }}
+            {{- else if eq $backend "openclaw" }}
+            - name: SLVD_OPENCLAW_TOKEN
+              value: {{ include "slvd.secret.openclawToken" . | quote }}
+            {{- end }}
+            {{- /* signing keys: generated deterministically from release coords
+                   unless engine.env pins a non-empty value. */ -}}
+            {{- if $env.SLVD_JWT_SECRET | default "" }}
+            - name: SLVD_JWT_SECRET
+              value: {{ $env.SLVD_JWT_SECRET | quote }}
+            {{- else }}
             - name: SLVD_JWT_SECRET
               value: {{ include "slvd.secret.jwtSecret" . | quote }}
+            {{- end }}
+            {{- if $env.SLVD_HMAC_SECRET | default "" }}
+            - name: SLVD_HMAC_SECRET
+              value: {{ $env.SLVD_HMAC_SECRET | quote }}
+            - name: SLVD_MCP_INTERNAL_TOKEN
+              value: {{ $env.SLVD_HMAC_SECRET | quote }}
+            {{- else }}
             - name: SLVD_HMAC_SECRET
               value: {{ include "slvd.secret.hmacSecret" . | quote }}
             - name: SLVD_MCP_INTERNAL_TOKEN
               value: {{ include "slvd.secret.hmacSecret" . | quote }}
-            - name: SLVD_OPENCLAW_TOKEN
-              value: {{ include "slvd.secret.openclawToken" . | quote }}
+            {{- end }}
           readinessProbe:
             httpGet: { path: /healthz, port: 8080 }
             initialDelaySeconds: 5

@@ -22,17 +22,15 @@ hpe-ezua/component: app
 =============================================================================
 Zero-input deploy: secret + endpoint auto-resolution
 =============================================================================
-The PCAI UI form may be left COMPLETELY EMPTY for the `secrets:` block and the
-engine endpoints. Resolution order per key:
-  1. explicit .Values value (non-empty = operator override, always wins)
-  2. cluster lookup of the credential already owned by its source app:
-       litellmApiKey  -> Secret litellm-helm-masterkey (litellm chart)
-       openclawToken  -> NemoClaw's openclaw.json ConfigMap (the gateway was
-                         started with exactly this baked static token)
-  3. deterministic derivation from release coordinates (jwtSecret, hmacSecret):
-     identical across every template AND stable across upgrades (a fresh
-     random per upgrade would invalidate live JWTs + approval links).
-     Demo-scoped; form input still overrides.
+The PCAI UI form may be left COMPLETELY EMPTY (zero-input deploy):
+  - engine.env.SLVD_LLM_API_KEY    (used only when backend=direct_llm) —
+       explicit value wins; empty -> Secret litellm-helm-masterkey
+  - engine.env.SLVD_OPENCLAW_TOKEN (used only when backend=openclaw) —
+       explicit value wins; empty -> NemoClaw's openclaw.json ConfigMap (the
+       gateway was started with exactly this baked static token)
+  - SLVD_JWT_SECRET / SLVD_HMAC_SECRET / SLVD_MCP_INTERNAL_TOKEN — GENERATED:
+       deterministic sha256 of the release coordinates (stable across upgrades;
+       identical across templates). Pin a custom value via engine.env if needed.
 CRITICAL (verified on CS1, helm 3.16): cluster-wide lookup (namespace "")
 returns NIL for Service/Secret/ConfigMap under the import identity while
 NAMESPACE-scoped lookup works. Every lookup below therefore iterates
@@ -119,16 +117,20 @@ its FQDN instead of trusting a possibly-stale form value. "" => keep values.yaml
 {{- end -}}
 
 {{- define "slvd.secret.litellmApiKey" -}}
-{{- if .Values.secrets.litellmApiKey -}}
-  {{- .Values.secrets.litellmApiKey -}}
+{{- /* engine.env.SLVD_LLM_API_KEY is the operator override; empty = detect */ -}}
+{{- $v := default "" (index .Values.engine.env "SLVD_LLM_API_KEY") -}}
+{{- if $v -}}
+  {{- $v -}}
 {{- else -}}
   {{- include "slvd.secretLookup" (dict "root" . "name" "litellm-helm-masterkey" "key" "masterkey") -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "slvd.secret.openclawToken" -}}
-{{- if .Values.secrets.openclawToken -}}
-  {{- .Values.secrets.openclawToken -}}
+{{- /* engine.env.SLVD_OPENCLAW_TOKEN is the operator override; empty = detect */ -}}
+{{- $explicit := default "" (index .Values.engine.env "SLVD_OPENCLAW_TOKEN") -}}
+{{- if $explicit -}}
+  {{- $explicit -}}
 {{- else -}}
   {{- /* 0.2.x bakes the static gateway token into openclaw.json
          ("token": "<hex>") — regexFindAll returns the full match; trim it. */ -}}
@@ -142,17 +144,16 @@ its FQDN instead of trusting a possibly-stale form value. "" => keep values.yaml
 {{- end -}}
 
 {{- define "slvd.secret.jwtSecret" -}}
-{{- if .Values.secrets.jwtSecret -}}
-  {{- .Values.secrets.jwtSecret -}}
-{{- else -}}
-  {{- sha256sum (printf "slvd-jwt|%s|%s" .Release.Namespace .Release.Name) -}}
-{{- end -}}
+{{- /* Generated deterministically from the release coordinates — stable across
+       upgrades (live JWTs survive) and identical across all templates. To pin a
+       custom key, set engine.env.SLVD_JWT_SECRET (template skips generation
+       when that key exists). */ -}}
+{{- sha256sum (printf "slvd-jwt|%s|%s" .Release.Namespace .Release.Name) -}}
 {{- end -}}
 
 {{- define "slvd.secret.hmacSecret" -}}
-{{- if .Values.secrets.hmacSecret -}}
-  {{- .Values.secrets.hmacSecret -}}
-{{- else -}}
-  {{- sha256sum (printf "slvd-hmac|%s|%s" .Release.Namespace .Release.Name) -}}
-{{- end -}}
+{{- /* Generated deterministically (see jwtSecret). Shared by engine
+       SLVD_HMAC_SECRET and mcp SLVD_MCP_INTERNAL_TOKEN — must match. Override:
+       engine.env.SLVD_HMAC_SECRET. */ -}}
+{{- sha256sum (printf "slvd-hmac|%s|%s" .Release.Namespace .Release.Name) -}}
 {{- end -}}

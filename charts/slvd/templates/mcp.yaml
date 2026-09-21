@@ -28,8 +28,9 @@ spec:
           env:
             - name: SLVD_ENGINE_URL
               value: http://engine.{{ .Values.global.namespace }}.svc:8080
+            {{- $h := .Values.engine.env.SLVD_HMAC_SECRET | default "" }}
             - name: SLVD_MCP_INTERNAL_TOKEN
-              value: {{ include "slvd.secret.hmacSecret" . | quote }}
+              value: {{ if $h }}{{ $h | quote }}{{ else }}{{ include "slvd.secret.hmacSecret" . | quote }}{{ end }}
           readinessProbe:
             httpGet: { path: /healthz, port: 8000 }
             initialDelaySeconds: 5
