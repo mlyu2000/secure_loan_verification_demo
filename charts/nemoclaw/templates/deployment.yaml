@@ -151,10 +151,6 @@ spec:
               # Gateway (foreground; only real flags: --force --accept-hooks;
               # ports/keys come from $HERMES_HOME/config.yaml + .env).
               exec /opt/hermes/.venv/bin/hermes gateway run --force --accept-hooks
-          env:                {{- if .Values.telegram.enabled }}
-                --telegram \
-                --telegram-bot-token "$(cat /etc/telegram-bot-token)" \
-                {{- end }}
           env:
             - name: HOME
               value: /sandbox

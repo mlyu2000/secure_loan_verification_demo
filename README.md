@@ -158,7 +158,7 @@ secure_loan_verification_demo/
 │   ├── slvd/            # SLVD Helm chart + EzAppConfig (PCAI BYOA deploy)
 │   └── nemoclaw/        # NemoClaw (OpenClaw agent) Helm chart — deployed first (prereq)
 ├── slvd-0.9.9.tgz       # packaged SLVD helm chart (at repo root)
-├── nemoclaw-0.2.5.tgz   # packaged NemoClaw helm chart (at repo root)
+├── nemoclaw-0.2.6.tgz   # packaged NemoClaw helm chart (at repo root)
 ├── nemoclaw-icon.png    # NemoClaw chart icon (UI app tile logo)
 └── images/              # screenshots + architecture/business diagrams (html + png)
 ```
@@ -178,7 +178,7 @@ NemoClaw chart must be deployed **before** the SLVD chart (the engine connects t
 `SLVD_OPENCLAW_URL`). It is shipped in this repo:
 
 - Chart source: `charts/nemoclaw/` (Helm chart, icon at `nemoclaw/icon.png`)
-- Packaged: `nemoclaw-0.2.5.tgz` (repo root)
+- Packaged: `nemoclaw-0.2.6.tgz` (repo root)
 - Icon: `nemoclaw-icon.png` (repo root — used as the UI app-tile logo)
 
 Push it to chartmuseum, then in the PCAI UI: Frameworks → *Import framework* (BYOA) →
