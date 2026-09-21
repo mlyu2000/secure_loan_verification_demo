@@ -160,6 +160,7 @@ secure_loan_verification_demo/
 ├── slvd-0.9.9.tgz       # packaged SLVD helm chart (at repo root)
 ├── nemoclaw-0.2.6.tgz   # packaged NemoClaw helm chart (at repo root)
 ├── nemoclaw-icon.png    # NemoClaw chart icon (UI app tile logo)
+├── slvd-icon.png        # SLVD app icon (UI app tile logo)
 └── images/              # screenshots + architecture/business diagrams (html + png)
 ```
 
@@ -197,7 +198,8 @@ This creates the `nemoclaw` namespace + the OpenClaw gateway service that SLVD t
    ```
 
 2. **Import in the PCAI UI**: Frameworks → *Import framework* (BYOA) → select the
-   `slvd` chart version from chartmuseum → fill in the values:
+   `slvd` chart version from chartmuseum → upload `slvd-icon.png` as the app-tile
+   logo → fill in the values:
    - image tag (from step 1) and `${DOMAIN_NAME}` for the ingress host
    - the `secrets` block: `litellmApiKey`, `jwtSecret`, `hmacSecret`, `openclawToken`
    - agent/LLM endpoints: `SLVD_OPENCLAW_URL` (NemoClaw gateway service, deployed in the
