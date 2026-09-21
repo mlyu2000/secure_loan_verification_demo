@@ -201,11 +201,16 @@ This creates the `nemoclaw` namespace + the OpenClaw gateway service that SLVD t
    `slvd` chart version from chartmuseum → upload `slvd-icon.png` as the app-tile
    logo → fill in the values:
    - image tag (from step 1) and `${DOMAIN_NAME}` for the ingress host
-   - the `secrets` block may be **left empty** (zero-input deploy): the chart
-     auto-detects `litellmApiKey` (from the in-cluster litellm master-key Secret),
-     `openclawToken` (from the NemoClaw gateway ConfigMap), and derives stable
-     `jwtSecret`/`hmacSecret` from the release coordinates. Entering any value
-     in the form always overrides auto-detection.
+   - the `secrets:` block no longer exists — the form can be **left empty**
+     (zero-input deploy). Backend credentials now live under `engine.env`
+     and are emitted only for the configured `SLVD_AGENT_BACKEND`:
+     `SLVD_LLM_API_KEY` (backend=`direct_llm`, auto-detected from the
+     in-cluster litellm master-key Secret when empty) and
+     `SLVD_OPENCLAW_TOKEN` (backend=`openclaw`, auto-detected from the
+     NemoClaw gateway ConfigMap when empty). Signing keys
+     (`SLVD_JWT_SECRET`/`SLVD_HMAC_SECRET`/`SLVD_MCP_INTERNAL_TOKEN`) are
+     generated deterministically from the release coordinates. Any non-empty
+     `engine.env` value you enter always overrides auto-detection.
    - agent/LLM endpoints (`SLVD_OPENCLAW_URL`, `SLVD_LLM_BASE_URL`) are
      auto-detected from the in-cluster NemoClaw / LiteLLM services when those
      apps are deployed first; the values.yaml entries are fallbacks only.
