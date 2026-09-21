@@ -44,6 +44,49 @@ analyst (Nick) starts the case. From there:
 
 ![Business perspective](images/slvd-business-perspective.png)
 
+### The demo end-to-end (screenshots from a live PCAI run)
+
+Captured from a real run on the deployed demo (case `CR-2026-00451`, $5M renewal):
+
+1. **The agent's `bank-credit` skill** — shipped by the NemoClaw chart and seeded into the
+   gateway at pod start. The OpenClaw dashboard's Skills page lists it as *installed* and
+   *eligible*; this is what turns the generic gateway into the governed credit analyst.
+
+   ![NemoClaw skills page](images/nemoclaw-skills-bank-credit.png)
+
+2. **Sign in as the analyst** — the portal login screen shows the demo credentials;
+   `nick / analyst123` (Risk Analyst) and `sarah / officer123` (Senior Credit Officer)
+   get different consoles, matching their roles.
+
+   ![Portal login](images/portal-login.png)
+
+3. **Nick starts the governed run** — he picks the case, states the amount, and clicks
+   *Generate renewal decision memo*. The agent pulls the five bank systems via the
+   governed MCP, drafts the memo, and the run reaches the **policy gate**
+   (amount ≥ $5M + KYC pending) — it pauses here, and a signed approval email goes to Sarah:
+
+   ![Run paused at the policy gate](images/nick-run-paused-at-gate.png)
+
+4. **Sarah approves from her Governance Console** — the queue entry shows the case,
+   the policy trigger, and the request timestamp; her decision is recorded under her
+   identity (E200145) in the audit trail:
+
+   ![Approval console](images/sarah-approval-console.png)
+
+5. **The approval email in the mailbox** — Mailpit (the in-cluster SMTP sink,
+   `https://slvd-mail.${DOMAIN_NAME}`) holds the `[ACTION REQUIRED]` email sent to
+   `Sarah.Chen@mybank.com`: policy reasons, the case summary table, and a signed
+   deep-link to record the decision from the email itself.
+
+   ![Approval email in Mailpit](images/approval-email-mailpit.png)
+
+6. **Nick's run completes — memo published** — after Sarah's decision the paused run
+   auto-continues: every workflow step is checked, the memo is published to the official
+   record (`/official/credit/2026/CR-2026-00451`), the decision summary names the
+   approver, and the client receives the outcome email:
+
+   ![Published memo for Nick's run](images/nick-published-memo.png)
+
 ### Who does what
 
 | Role | Who | What they do | What they do **not** do |
