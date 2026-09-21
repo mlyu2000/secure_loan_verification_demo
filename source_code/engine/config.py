@@ -14,8 +14,8 @@ class Settings:
     # Core
     base_url: str = os.environ.get("SLVD_BASE_URL", "http://localhost:8080")
     data_dir: str = os.environ.get("SLVD_DATA_DIR", "/data")
-    jwt_secret: str = os.environ.get("SLVD_JWT_SECRET", "dev-only-jwt-secret")
-    hmac_secret: str = os.environ.get("SLVD_HMAC_SECRET", "dev-only-hmac-secret")
+    jwt_secret: str = os.environ.get("SLVD_JWT_SECRET") or "dev-only-jwt-secret"
+    hmac_secret: str = os.environ.get("SLVD_HMAC_SECRET") or "dev-only-hmac-secret"
     jwt_ttl_hours: int = int(os.environ.get("SLVD_JWT_TTL_HOURS", "8"))
     link_ttl_hours: int = int(os.environ.get("SLVD_LINK_TTL_HOURS", "24"))
 

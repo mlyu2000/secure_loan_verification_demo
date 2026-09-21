@@ -157,7 +157,7 @@ secure_loan_verification_demo/
 ├── charts/
 │   ├── slvd/            # SLVD Helm chart + EzAppConfig (PCAI BYOA deploy)
 │   └── nemoclaw/        # NemoClaw (OpenClaw agent) Helm chart — deployed first (prereq)
-├── slvd-0.9.9.tgz       # packaged SLVD helm chart (at repo root)
+├── slvd-0.10.0.tgz      # packaged SLVD helm chart (at repo root)
 ├── nemoclaw-0.2.6.tgz   # packaged NemoClaw helm chart (at repo root)
 ├── nemoclaw-icon.png    # NemoClaw chart icon (UI app tile logo)
 ├── slvd-icon.png        # SLVD app icon (UI app tile logo)
@@ -201,9 +201,14 @@ This creates the `nemoclaw` namespace + the OpenClaw gateway service that SLVD t
    `slvd` chart version from chartmuseum → upload `slvd-icon.png` as the app-tile
    logo → fill in the values:
    - image tag (from step 1) and `${DOMAIN_NAME}` for the ingress host
-   - the `secrets` block: `litellmApiKey`, `jwtSecret`, `hmacSecret`, `openclawToken`
-   - agent/LLM endpoints: `SLVD_OPENCLAW_URL` (NemoClaw gateway service, deployed in the
-     prerequisite above) and `SLVD_LLM_BASE_URL` + `SLVD_LLM_MODEL` (litellm proxy)
+   - the `secrets` block may be **left empty** (zero-input deploy): the chart
+     auto-detects `litellmApiKey` (from the in-cluster litellm master-key Secret),
+     `openclawToken` (from the NemoClaw gateway ConfigMap), and derives stable
+     `jwtSecret`/`hmacSecret` from the release coordinates. Entering any value
+     in the form always overrides auto-detection.
+   - agent/LLM endpoints (`SLVD_OPENCLAW_URL`, `SLVD_LLM_BASE_URL`) are
+     auto-detected from the in-cluster NemoClaw / LiteLLM services when those
+     apps are deployed first; the values.yaml entries are fallbacks only.
 
    → *Deploy*. The platform creates the namespace and the release.
 

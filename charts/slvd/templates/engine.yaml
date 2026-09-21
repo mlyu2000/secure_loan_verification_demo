@@ -40,20 +40,30 @@ spec:
               value: "1025"
             - name: SLVD_BASE_URL
               value: https://{{ .Values.ingress.host }}
+            {{- $ocUrl := include "slvd.openclawUrl" . }}
+            {{- $llmUrl := include "slvd.llmBaseUrl" . }}
             {{- range $k, $v := .Values.engine.env }}
+            {{- if and (eq $k "SLVD_OPENCLAW_URL") $ocUrl }}
+            - name: SLVD_OPENCLAW_URL
+              value: {{ $ocUrl | quote }}
+            {{- else if and (eq $k "SLVD_LLM_BASE_URL") $llmUrl }}
+            - name: SLVD_LLM_BASE_URL
+              value: {{ $llmUrl | quote }}
+            {{- else }}
             - name: {{ $k }}
               value: {{ $v | quote }}
             {{- end }}
+            {{- end }}
             - name: SLVD_LLM_API_KEY
-              value: {{ .Values.secrets.litellmApiKey | quote }}
+              value: {{ include "slvd.secret.litellmApiKey" . | quote }}
             - name: SLVD_JWT_SECRET
-              value: {{ .Values.secrets.jwtSecret | quote }}
+              value: {{ include "slvd.secret.jwtSecret" . | quote }}
             - name: SLVD_HMAC_SECRET
-              value: {{ .Values.secrets.hmacSecret | quote }}
+              value: {{ include "slvd.secret.hmacSecret" . | quote }}
             - name: SLVD_MCP_INTERNAL_TOKEN
-              value: {{ .Values.secrets.hmacSecret | quote }}
+              value: {{ include "slvd.secret.hmacSecret" . | quote }}
             - name: SLVD_OPENCLAW_TOKEN
-              value: {{ .Values.secrets.openclawToken | quote }}
+              value: {{ include "slvd.secret.openclawToken" . | quote }}
           readinessProbe:
             httpGet: { path: /healthz, port: 8080 }
             initialDelaySeconds: 5

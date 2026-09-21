@@ -43,6 +43,8 @@ engine:
     # agent backend: stub (sim) | direct_llm (real) | openclaw (NemoClaw runtime on PCAI)
     SLVD_AGENT_BACKEND: "openclaw"
     # NemoClaw/OpenClaw gateway (WS): engine -> agent turn (method=agent)
+    # fallback only — the chart auto-detects the real nemoclaw-openclaw
+    # Service FQDN in-cluster at install time and overrides this when found
     SLVD_OPENCLAW_URL: "ws://nemoclaw-openclaw.nemoclaw.svc:80"
     SLVD_SIMULATION: "0"
     SLVD_LLM_BASE_URL: "http://litellm-helm.project-user-aieadmin.svc.cluster.local:4000/v1"
@@ -76,8 +78,13 @@ mailpit:
     requests: { cpu: 50m, memory: 64Mi }
     limits: { cpu: 200m, memory: 128Mi }
 
-# Secrets — keep empty here; injected at deploy time via the EzAppConfig
-# 'values' block (gitignored ezappconfig.generated.yaml). No K8s Secret object.
+# Secrets — the UI form may be left COMPLETELY EMPTY (zero-input deploy):
+#   litellmApiKey  auto-detected from the in-cluster litellm-helm-masterkey Secret
+#   openclawToken  auto-detected from NemoClaw's openclaw.json ConfigMap
+#   jwtSecret      deterministic sha256(release coords) when empty
+#   hmacSecret     deterministic sha256(release coords) when empty
+# Any non-empty value entered in the form always overrides auto-detection.
+# No K8s Secret objects — plain env vars only.
 secrets:
   litellmApiKey: ""
   jwtSecret: ""
