@@ -38,6 +38,15 @@ spec:
               mkdir -p "$STATE/agents/main/agent" "$STATE/workspace"
               cp /etc/openclaw-config/openclaw.json "$STATE/openclaw.json"
               chmod 600 "$STATE/openclaw.json"
+              # Seed chart-shipped skills into the state dir (flattened keys:
+              # skill__<dir>__<file> -> skills/<dir>/<file>). Idempotent; the
+              # chart stays the source of truth on every pod start.
+              for f in /etc/openclaw-config/skill__*; do
+                [ -e "$f" ] || continue
+                rel=$(basename "$f"); rel=${rel#skill__}; rel=${rel//__//}
+                mkdir -p "$STATE/skills/$(dirname "$rel")"
+                cp "$f" "$STATE/skills/$rel"
+              done
               UI=/usr/lib/node_modules/openclaw/dist/control-ui
               mkdir -p "{{ .Values.ui.root }}"
               cp -r "$UI/." "{{ .Values.ui.root }}/"

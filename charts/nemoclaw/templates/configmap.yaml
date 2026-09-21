@@ -96,6 +96,19 @@ data:
 {{ .Files.Get "files/telegram-verify.js" | indent 4 }}
   {{- end }}
 
+  {{- /* Skill seeding (generic): every file under files/skills/<skill>/ in the
+       chart is exposed here under a flattened key (path separators -> __) and
+       copied into $STATE/skills/<skill>/ by the container command at start.
+       OpenClaw discovers SKILL.md under each $STATE/skills subdirectory as openclaw-managed skills.
+       Ship zero files = mechanism is a no-op. */}}
+  {{- range $path, $_ := .Files.Glob "files/skills/**" }}
+  {{- $rel := trimPrefix "files/skills/" $path }}
+  {{- if contains "/" $rel }}
+  {{ printf "skill__%s" (replace "/" "__" $rel) }}: |-
+{{ $.Files.Get $path | indent 4 }}
+  {{- end }}
+  {{- end }}
+
   {{- else if eq .Values.agent "hermes" }}
   # ── Hermes Agent config (written to /sandbox/.hermes/ at pod start) ─────
   # seed-hermes-config.sh is run by the container command to write
