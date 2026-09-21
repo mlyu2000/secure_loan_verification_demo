@@ -13,6 +13,7 @@ spec:
     metadata:
       labels:
         {{- include "nemoclaw.selectorLabels" . | nindent 8 }}
+        {{- include "hpe-ezua.labels" . | nindent 8 }}
         {{- if not .Values.istioInjection }}
         sidecar.istio.io/inject: "false"
         {{- end }}

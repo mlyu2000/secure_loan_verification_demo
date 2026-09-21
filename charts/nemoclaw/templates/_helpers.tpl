@@ -43,6 +43,12 @@ app.kubernetes.io/name: {{ include "nemoclaw.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
+{{- define "hpe-ezua.labels" -}}
+hpe-ezua/app: {{ .Values.ezua.appName | default "nemoclaw" }}
+hpe-ezua/type: vendor-service
+hpe-ezua/component: app
+{{- end -}}
+
 {{- define "nemoclaw.image" -}}
 {{- if .Values.image.digest -}}
 {{ .Values.image.repository }}@{{ .Values.image.digest }}

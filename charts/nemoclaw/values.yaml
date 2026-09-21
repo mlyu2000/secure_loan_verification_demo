@@ -90,6 +90,10 @@ ingress:
   enabled: true
 
 ezua:
+  # appName must equal the EzAppConfig spec.name (the PCAI app identity) so the
+  # ezua controller's pod-health query (label hpe-ezua/app=<appName>) matches
+  # the pods — without it the framework tile shows health "unknown".
+  appName: nemoclaw
   virtualService:
     endpoint: "${RELEASE_NAME}.${DOMAIN_NAME}"
     istioGateway: "istio-system/ezaf-gateway"
