@@ -1,6 +1,6 @@
 # SLVD — Secure Loan Verification Demo
 
-A **governed, human-in-the-loop AI workflow** for loan renewal. An AI agent gathers
+A **governed, human-in-the-loop AI workflow** for loan renewal. A replication of marketing video [Human‑Guided AI: Secure Loan Verification on HPE Private Cloud AI](https://psnow.ext.hpe.com/#/tiles/multimedia?id=v100014756&preview=true&filter.textSearch=v100014756). An AI agent gathers
 credit data from the bank's back-office systems and drafts a decision memo; a senior
 credit officer makes the final call on large or risky cases. Every step is audited.
 
@@ -134,7 +134,7 @@ endpoints are configured via chart values.
 | Component | Responsibility |
 |---|---|
 | **OpenClaw agent** (NemoClaw) | The generative step — pulls data via the `bank-credit` skill and drafts the memo |
-| **litellm proxy** → **qwen3-8-27b** | LLM inference (int4 on GPU) |
+| **litellm proxy** → **qwen3-8-27b** | LLM inference |
 
 ### Why both a FastAPI engine *and* an OpenClaw agent?
 
@@ -168,10 +168,9 @@ deterministic engine enforces policy, the human makes the call.
 
 The agent calls all five read tools (safe), drafts the memo, then calls the gated submit.
 
-> **Model note — llama3.1-8b is NOT supported in this demo (validated).** The agent runs on
-> **`qwen3-8-27b-int4-dflash2-r2`**. We validated `llama3.1-8b` and it is **not usable here**:
+> **Model note — llama3.1-8b is NOT supported in this demo (validated).** We validated `llama3.1-8b` and it is **not usable here**:
 > its output does not fit the **accepted schema in OpenClaw** (the response/structure OpenClaw
-> expects for agent turns), so the agent loop breaks. Use the validated qwen3 model.
+> expects for agent turns), so the agent loop breaks. Use the qwen3 model.
 
 ---
 
@@ -211,9 +210,9 @@ secure_loan_verification_demo/
 
 ## Deployment (HPE Private Cloud AI)
 
-The demo is deployed by **importing the framework through the PCAI platform UI**
-(BYOA import) — no CLI `kubectl apply` of the EzAppConfig. The UI does the install:
-it pulls the chart from chartmuseum and applies the values you enter in the form.
+The demo is deployed by **importing the framework through the PCAI platform UI**.
+The UI does the install:
+Upload the chart via the UI wizard and applies the values you enter in the form.
 
 ### Prerequisite — import the NemoClaw (agent) chart first
 
@@ -228,7 +227,7 @@ NemoClaw chart must be deployed **before** the SLVD chart (the engine connects t
   without this the `bank-credit` skill is missing and memo drafting degrades.
 - Icon: `nemoclaw-icon.png` (repo root — used as the UI app-tile logo)
 
-Push it to chartmuseum, then in the PCAI UI: Frameworks → *Import framework* (BYOA) →
+Push it to chartmuseum, then in the PCAI UI: Frameworks → *Import framework* →
 select the `nemoclaw` chart → fill in values (`ezua.virtualService.endpoint` with
 `${DOMAIN_NAME}`, the LLM endpoint `litellm.baseUrl` + `litellm.model` + `litellm.apiKey`
 (API key is entered directly in the values form), `gateway.token`) → *Deploy*.
@@ -236,14 +235,7 @@ This creates the `nemoclaw` namespace + the OpenClaw gateway service that SLVD t
 
 ### Deploy the SLVD chart
 
-1. **Publish the artifacts** (one-off, from a dev machine):
-
-   ```bash
-   make -f source_code/Makefile build-images   # build + push engine/mcp + portal images to the registry
-   make -f source_code/Makefile chart          # helm lint + package + push the chart to chartmuseum
-   ```
-
-2. **Import in the PCAI UI**: Frameworks → *Import framework* (BYOA) → select the
+1. **Import in the PCAI UI**: Frameworks → *Import framework* (BYOA) → select the
    `slvd` chart version from chartmuseum → upload `slvd-icon.png` as the app-tile
    logo → fill in the values:
    - image tag (from step 1) and `${DOMAIN_NAME}` for the ingress host
@@ -263,17 +255,6 @@ This creates the `nemoclaw` namespace + the OpenClaw gateway service that SLVD t
 
    → *Deploy*. The platform creates the namespace and the release.
 
-3. **Post-deploy checks** (optional, from a dev machine):
-
-   ```bash
-   make -f source_code/Makefile verify         # external URL + agent + LLM health checks
-   make -f source_code/Makefile demo-run       # one fresh end-to-end run via the portal API
-   ```
-
-> **Make note:** the only Makefile lives at `source_code/Makefile` (there is no root
-> wrapper anymore). Run it as `make -f source_code/Makefile <target>`, or `cd source_code`
-> first and use plain `make <target>`. All targets already resolve paths relative to
-> the repo root, so they work from either location.
 
 - **External URLs**: an Istio VirtualService on the platform ingress gateway
   (`istio-system/ezaf-gateway`) exposes
@@ -293,9 +274,6 @@ This creates the `nemoclaw` namespace + the OpenClaw gateway service that SLVD t
 ---
 
 ## Verification
-
-The demo is validated by a real run, not by reading the code:
-
 - **Live**: a real run through the openclaw agent → governed MCP → approval gate →
   approver decision → published memo → client email, with every step in the audit trail.
 
