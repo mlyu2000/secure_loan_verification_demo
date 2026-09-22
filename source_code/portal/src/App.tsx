@@ -13,13 +13,20 @@ const CASES = [
 ];
 
 // Mailpit web UI (approval + client emails). The demo deploys a dedicated
-// ingress host (slvd-mail.*) that proxies to mailpit:8025. If that host is
-// not reachable (e.g. local port-forward dev), fall back to same-origin.
-const MAIL_HOST = (window.location.hostname || "").startsWith("localhost") || (window.location.hostname || "").startsWith("127.0.0.1")
-  ? "http://127.0.0.1:8025"
-  : "https://slvd-mail.aie.cs1.ctc.sg.lab";
+// ingress host (slvd-mail.<platform domain>) that proxies to mailpit:8025.
+// Resolve it at RUNTIME — adaptive to whatever platform domain the app is
+// deployed on (no baked-in cluster hostname):
+//   1. window.__SLVD_MAIL_BASE__   explicit override (e.g. injected config.js)
+//   2. localhost / 127.0.0.1 dev   -> port-forwarded mailpit on :8025
+//   3. deployed host "slvd.<base>" -> "https://slvd-mail.<base>"
+//   4. unknown host                -> same-origin :8025 fallback
 function mailUrl(): string {
-  return MAIL_HOST + "/";
+  const override = (window as any).__SLVD_MAIL_BASE__;
+  if (typeof override === "string" && override.trim()) return override.trim().replace(/\/+$/, "") + "/";
+  const host = window.location.hostname || "";
+  if (host === "localhost" || host.startsWith("127.")) return "http://127.0.0.1:8025/";
+  if (host.startsWith("slvd.")) return "https://slvd-mail." + host.slice("slvd.".length) + "/";
+  return window.location.protocol + "//" + host + ":8025/";
 }
 
 // ---------- architecture (who does what) ----------
