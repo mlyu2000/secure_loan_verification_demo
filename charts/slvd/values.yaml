@@ -81,6 +81,10 @@ mailpit:
     pullPolicy: IfNotPresent
   smtpPort: 1025
   uiPort: 8025
+  # mTLS handling for the sidecarless mailpit pod. Keep true on strict-mTLS
+  # meshes (a PeerAuthentication DISABLE is a no-op on permissive meshes).
+  mtlsDisable:
+    enabled: true
   resources:
     requests: { cpu: 50m, memory: 64Mi }
     limits: { cpu: 200m, memory: 128Mi }
