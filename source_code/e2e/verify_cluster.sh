@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # A3 + A4 + A10 cluster health gates. Prints JSON. Exit 0 = all pass.
 set -u
-KUBE="${KUBE:-/home/ml/projects/kubeconfig-cs1.conf}"
+KUBE="${KUBE:?set KUBE=<kubeconfig path>}"
 export KUBECONFIG="$KUBE"
 K="kubectl"
 NS=slvd
-HOST="${SLVD_HOST:-slvd.aie.cs1.ctc.sg.lab}"
+HOST="${SLVD_HOST:?set SLVD_HOST=slvd.<platform-domain>}"
 PASS=1
 R=""
 
@@ -31,15 +31,17 @@ echo "$title" | grep -q "Credit Risk Portal" || { echo "A3 FAIL: title $title"; 
 echo "$health" | grep -q '"ok":true' || echo "$health" | grep -q '"ok": true' || { echo "A3 FAIL: healthz $health"; PASS=0; }
 
 # --- A4: nemoclaw agent health (dashboard + LLM completion max_tokens>=256) ---
-NC_HOST="${NC_HOST:-nemoclaw.aie.cs1.ctc.sg.lab}"
-NC_TOKEN=$($K get cm -n nemoclaw nemoclaw-openclaw-config -o jsonpath='{.data.openclaw\.json}' 2>/dev/null | python3 -c "import json,sys
+NC_HOST="${NC_HOST:?set NC_HOST=nemoclaw-openclaw.<platform-domain>}"
+NC_NS="${NC_NS:-nemoclaw}"              # namespace hosting the NemoClaw release
+NC_REL="${NC_REL:-nemoclaw-openclaw}"   # chart fullname (fullnameOverride)
+NC_TOKEN=$($K get cm -n $NC_NS $NC_REL-openclaw-config -o jsonpath='{.data.openclaw\.json}' 2>/dev/null | python3 -c "import json,sys
 try:
   d=json.load(sys.stdin); print(d['gateway']['auth']['token'] or '')
 except Exception:
   print('')")
 if [ -z "$NC_TOKEN" ]; then
   # token may be in a secret or the release values
-  NC_TOKEN=$($K get secret -n nemoclaw nemoclaw -o jsonpath='{.data.gateway-token}' 2>/dev/null | base64 -d 2>/dev/null)
+  NC_TOKEN=$($K get secret -n $NC_NS $NC_REL-gateway-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d 2>/dev/null)
 fi
 nc_code=000
 if [ -n "$NC_TOKEN" ]; then
@@ -49,9 +51,11 @@ echo "nemoclaw dashboard code=$nc_code (token_present=$([ -n "$NC_TOKEN" ] && ec
 [ "$nc_code" = "200" ] || { echo "A4 WARN: nemoclaw dashboard $nc_code"; }
 
 # LLM completion via litellm (max_tokens >= 256, non-null content)
-LLM_BASE="http://litellm-helm.project-user-aieadmin.svc.cluster.local:4000/v1"
-LLM_KEY=$($K get secret -n project-user-aieadmin litellm-helm-masterkey -o jsonpath='{.data.key}' 2>/dev/null | base64 -d 2>/dev/null)
-[ -z "$LLM_KEY" ] && LLM_KEY=$($K get secret -n project-user-aieadmin litellm-helm-masterkey -o jsonpath='{.data.LITELLM_MASTER_KEY}' 2>/dev/null | base64 -d 2>/dev/null)
+LLM_NS="${LLM_NS:-project-user-aieadmin}"   # namespace hosting the litellm-helm proxy
+LLM_BASE="http://litellm-helm.${LLM_NS}.svc.cluster.local:4000/v1"
+LLM_KEY=$($K get secret -n ${LLM_NS} litellm-helm-masterkey -o jsonpath='{.data.key}' 2>/dev/null | base64 -d 2>/dev/null)
+[ -z "$LLM_KEY" ] && LLM_KEY=$($K get secret -n ${LLM_NS} litellm-helm-masterkey -o jsonpath='{.data.LITELLM_MASTER_KEY}' 2>/dev/null | base64 -d 2>/dev/null)
+[ -z "$LLM_KEY" ] && LLM_KEY=$($K get secret -n ${LLM_NS} litellm-helm-masterkey -o jsonpath='{.data.masterkey}' 2>/dev/null | base64 -d 2>/dev/null)
 llm_probe_out=""
 if [ -n "$LLM_KEY" ]; then
   llm_probe_out=$($K run slvd-llm-probe --rm -i --restart=Never -n $NS \

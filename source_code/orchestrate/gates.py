@@ -15,7 +15,7 @@ import re
 import subprocess
 from dataclasses import dataclass
 
-KUBECONFIG = "/home/ml/projects/kubeconfig-cs1.conf"
+KUBECONFIG = os.environ.get("SLVD_KUBECONFIG", "/home/ml/projects/kubeconfig-cs1.conf")
 
 ALLOWED = {
     # ns: allowed resource kinds (None = all)

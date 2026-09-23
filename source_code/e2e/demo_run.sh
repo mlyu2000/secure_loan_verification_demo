@@ -2,11 +2,11 @@
 # One fresh end-to-end run against the deployed portal (A5). Prints JSON summary.
 # Works against the external VS URL (browser-reachable) — no internal bypass.
 set -u
-KUBE="${KUBE:-/home/ml/projects/kubeconfig-cs1.conf}"
+KUBE="${KUBE:?set KUBE=<kubeconfig path>}"
 export KUBECONFIG="$KUBE"
 K="kubectl"
 NS=slvd
-HOST="${SLVD_HOST:-slvd.aie.cs1.ctc.sg.lab}"
+HOST="${SLVD_HOST:?set SLVD_HOST=slvd.<platform-domain>}"
 BASE="https://$HOST"
 PASS=1
 

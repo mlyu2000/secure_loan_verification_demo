@@ -24,6 +24,17 @@ import sys
 import time
 from datetime import datetime, timezone
 
+# Cluster/unit knobs (dev-only automation; override via env — not used by the
+# shipped chart/images). Defaults preserve the historical CS1 lab targets.
+KUBECONFIG = os.environ.get("SLVD_KUBECONFIG", "/home/ml/projects/kubeconfig-cs1.conf")
+SLVD_IMG = os.environ.get("SLVD_IMG", "registry.ctc.sg.lab:5000/slvd")
+SLVD_LLM_NS = os.environ.get("SLVD_LLM_NS", "project-user-aieadmin")
+SLVD_HOST = os.environ.get("SLVD_HOST", "slvd.aie.cs1.ctc.sg.lab")
+# Propagate to e2e scripts spawned via run_cmd (they require KUBE/SLVD_HOST).
+os.environ.setdefault("KUBECONFIG", KUBECONFIG)
+os.environ.setdefault("KUBE", KUBECONFIG)
+os.environ.setdefault("SLVD_HOST", SLVD_HOST)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root
 ORCH = os.path.join(ROOT, "source_code", "orchestrate")
 STATE_F = os.path.join(ORCH, "state.json")
@@ -123,15 +134,13 @@ def git_commit(msg: str) -> bool:
 
 
 def cluster_available() -> bool:
-    rc, out = run_cmd(["kubectl", "--kubeconfig", os.environ.get("KUBECONFIG",
-                              "/home/ml/projects/kubeconfig-cs1.conf"),
+    rc, out = run_cmd(["kubectl", "--kubeconfig", KUBECONFIG,
                        "get", "ns", "--request-timeout=10s"], timeout=30)
     return rc == 0
 
 
 def check_cluster_hard() -> bool:
-    rc, out = run_cmd(["kubectl", "--kubeconfig", os.environ.get("KUBECONFIG",
-                              "/home/ml/projects/kubeconfig-cs1.conf"),
+    rc, out = run_cmd(["kubectl", "--kubeconfig", KUBECONFIG,
                        "get", "ns", "--request-timeout=10s"], timeout=30)
     return rc == 0
 
@@ -259,9 +268,8 @@ def phase_e2e(state: dict) -> tuple[bool, str]:
 # ---------------- cluster phases ----------------
 
 def _get_litellm_key() -> str:
-    rc, out = run_cmd(["kubectl", "--kubeconfig", os.environ.get("KUBECONFIG",
-                        "/home/ml/projects/kubeconfig-cs1.conf"),
-                       "get", "secret", "-n", "project-user-aieadmin", "litellm-helm-masterkey",
+    rc, out = run_cmd(["kubectl", "--kubeconfig", KUBECONFIG,
+                       "get", "secret", "-n", SLVD_LLM_NS, "litellm-helm-masterkey",
                        "-o", "json"], timeout=60)
     if rc != 0:
         return ""
@@ -277,8 +285,7 @@ def _get_litellm_key() -> str:
 
 
 def _get_openclaw_token() -> str:
-    rc, out = run_cmd(["kubectl", "--kubeconfig", os.environ.get("KUBECONFIG",
-                        "/home/ml/projects/kubeconfig-cs1.conf"),
+    rc, out = run_cmd(["kubectl", "--kubeconfig", KUBECONFIG,
                        "get", "secret", "-n", "nemoclaw", "nemoclaw-openclaw-gateway-token",
                        "-o", "json"], timeout=60)
     if rc != 0:
@@ -315,13 +322,12 @@ def phase_deploy(state: dict) -> tuple[bool, str]:
     }
     # 2. images
     ver = state.get("chart_version", "0.1.0")
-    ok, out = run_cmd(["make", "-f", "source_code/Makefile", "build-images", f"IMG=registry.ctc.sg.lab:5000/slvd", f"VER={ver}"],
+    ok, out = run_cmd(["make", "-f", "source_code/Makefile", "build-images", f"IMG={SLVD_IMG}", f"VER={ver}"],
                       timeout=PHASE_CAP_S)
     if ok != 0:
         return False, f"image build/push failed:\n{out[-1500:]}"
     # 3. chartmuseum port-forward + push
-    pf = subprocess.Popen(["kubectl", "--kubeconfig", os.environ.get("KUBECONFIG",
-                            "/home/ml/projects/kubeconfig-cs1.conf"),
+    pf = subprocess.Popen(["kubectl", "--kubeconfig", KUBECONFIG,
                            "port-forward", "-n", "ez-chartmuseum-ns", "svc/chartmuseum", "18080:8080"],
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(3)
@@ -347,7 +353,7 @@ def phase_deploy(state: dict) -> tuple[bool, str]:
     with open(ezf, "w") as f:
         f.write(ez)
     # 5. deploy
-    ok, out = run_cmd(["make", "-f", "source_code/Makefile", "deploy", f"KUBE={os.environ.get('KUBECONFIG', '/home/ml/projects/kubeconfig-cs1.conf')}"],
+    ok, out = run_cmd(["make", "-f", "source_code/Makefile", "deploy", f"KUBE={KUBECONFIG}"],
                       timeout=PHASE_CAP_S)
     if ok != 0:
         return False, f"make deploy: {out[-1500:]}"
@@ -357,21 +363,18 @@ def phase_deploy(state: dict) -> tuple[bool, str]:
 
 def phase_cluster(state: dict) -> tuple[bool, str]:
     # deterministic cluster e2e: force simulation on the live engine
-    ok, out = run_cmd(["kubectl", "--kubeconfig", os.environ.get("KUBECONFIG",
-                        "/home/ml/projects/kubeconfig-cs1.conf"),
+    ok, out = run_cmd(["kubectl", "--kubeconfig", KUBECONFIG,
                        "set", "env", "deploy/engine", "-n", "slvd",
                        "SLVD_SIMULATION=1", "SLVD_AGENT_BACKEND=stub"], timeout=120)
     if ok != 0:
         return False, f"set env: {out[-500:]}"
-    run_cmd(["kubectl", "--kubeconfig", os.environ.get("KUBECONFIG",
-            "/home/ml/projects/kubeconfig-cs1.conf"), "rollout", "status",
+    run_cmd(["kubectl", "--kubeconfig", KUBECONFIG, "rollout", "status",
             "deploy/engine", "-n", "slvd", "--timeout=180s"], timeout=240)
     ok, out = run_cmd(["bash", os.path.join(ROOT, "source_code", "e2e", "verify_cluster.sh")], timeout=PHASE_CAP_S)
     ok2, out2 = run_cmd(["bash", os.path.join(ROOT, "source_code", "e2e", "demo_run.sh")], timeout=PHASE_CAP_S)
     detail = out[-1500:] + "\n[demo_run] " + out2[-1500:]
     # restore production mode
-    run_cmd(["kubectl", "--kubeconfig", os.environ.get("KUBECONFIG",
-            "/home/ml/projects/kubeconfig-cs1.conf"),
+    run_cmd(["kubectl", "--kubeconfig", KUBECONFIG,
             "set", "env", "deploy/engine", "-n", "slvd",
             "SLVD_SIMULATION=0", f"SLVD_AGENT_BACKEND={state.get('deploy_backend', 'direct_llm')}"],
             timeout=120)
@@ -379,8 +382,7 @@ def phase_cluster(state: dict) -> tuple[bool, str]:
 
 
 def phase_golden(state: dict) -> tuple[bool, str]:
-    run_cmd(["kubectl", "--kubeconfig", os.environ.get("KUBECONFIG",
-            "/home/ml/projects/kubeconfig-cs1.conf"), "rollout", "status",
+    run_cmd(["kubectl", "--kubeconfig", KUBECONFIG, "rollout", "status",
             "deploy/engine", "-n", "slvd", "--timeout=180s"], timeout=240)
     ok, out = run_cmd([PY, os.path.join(ROOT, "source_code", "e2e", "golden_run.py")], timeout=PHASE_CAP_S)
     return ok == 0, out
@@ -404,8 +406,9 @@ def write_handoff(state: dict) -> None:
         f.write("- All gates green: unit, review, e2e (S1-S8), deploy, cluster e2e, golden, "
                 "security, visual parity, reproducibility.\n\n")
         f.write("## How to run the demo\n")
-        f.write("1. Portal: https://slvd.aie.cs1.ctc.sg.lab (nick / analyst123)\n")
-        f.write("2. Mailpit UI: https://slvd-mail.aie.cs1.ctc.sg.lab (approval + client emails)\n")
+        f.write(f"1. Portal: https://{SLVD_HOST} (nick / analyst123)\n")
+        _mail = ("slvd-mail." + SLVD_HOST[len("slvd."):] if SLVD_HOST.startswith("slvd.") else SLVD_HOST)
+        f.write(f"2. Mailpit UI: https://{_mail} (approval + client emails)\n")
         f.write("3. Select CR-2026-00451, $5,000,000, Generate renewal decision memo.\n")
         f.write("4. Watch the 10-step governed run; open Mailpit, click Approve (8 h);\n"
                 "   the run resumes, memo publishes, client gets 'Loan Application Approved'.\n\n")
@@ -470,8 +473,7 @@ def run_iteration(state: dict, cluster_ok: bool) -> str:
         if state["green_streak"] >= 2 and it % 3 == 0:
             # reproducibility spot-check (A12): clean redeploy
             log("reproducibility check: make clean && deploy")
-            ok, out = run_cmd(["make", "-f", "source_code/Makefile", "clean", "KUBE=" + os.environ.get("KUBECONFIG",
-                                   "/home/ml/projects/kubeconfig-cs1.conf")], timeout=600)
+            ok, out = run_cmd(["make", "-f", "source_code/Makefile", "clean", "KUBE=" + KUBECONFIG], timeout=600)
             ok2, out2 = run_cmd(["bash", os.path.join(ROOT, "source_code", "e2e", "verify_cluster.sh")],
                                 timeout=PHASE_CAP_S)
             if ok != 0 or ok2 != 0:
@@ -574,7 +576,7 @@ def cmd_stop() -> None:
 
 if __name__ == "__main__":
     c = sys.argv[1] if len(sys.argv) > 1 else "status"
-    os.environ.setdefault("KUBECONFIG", "/home/ml/projects/kubeconfig-cs1.conf")
+    os.environ.setdefault("KUBECONFIG", KUBECONFIG)
     if c == "start":
         start_detached()
     elif c == "status":
