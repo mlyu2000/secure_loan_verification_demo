@@ -38,7 +38,7 @@ portal:
 engine:
   image:
     repository: slvd
-    tag: "0.3.3"
+    tag: "0.3.4"
     pullPolicy: IfNotPresent
   port: 8080
   env:
@@ -68,7 +68,7 @@ engine:
 mcp:
   image:
     repository: slvd
-    tag: "0.3.3"
+    tag: "0.3.4"
     pullPolicy: IfNotPresent
   port: 8000
   resources:
