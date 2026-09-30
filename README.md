@@ -1,11 +1,13 @@
 # SLVD — Secure Loan Verification Demo
 
-A **governed, human-in-the-loop AI workflow** for loan renewal. A replication of marketing video [Human‑Guided AI: Secure Loan Verification on HPE Private Cloud AI](https://psnow.ext.hpe.com/#/tiles/multimedia?id=v100014756&preview=true&filter.textSearch=v100014756). An AI agent gathers
+A **governed, human-in-the-loop AI workflow** for loan renewal. A replication of marketing video [Human‑Guided AI: Secure Loan Verification on HPE Private Cloud AI](https://www.youtube.com/watch?v=pFZFVrltDX0). An AI agent gathers
 credit data from the bank's back-office systems and drafts a decision memo; a senior
 credit officer makes the final call on large or risky cases. Every step is audited.
 
 > **The story in one line:** the AI does the analyst's research work in minutes, but a
 > human always holds the approval pen — and every action is on the record.
+
+**Demo recording:** [▶ Slvd Demo (MP4)](https://storage.googleapis.com/ai-solution-engineering-videos/public/Slvd%20Demo.mp4)
 
 ---
 
@@ -134,7 +136,14 @@ endpoints are configured via chart values.
 | Component | Responsibility |
 |---|---|
 | **OpenClaw agent** (NemoClaw) | The generative step — pulls data via the `bank-credit` skill and drafts the memo |
-| **litellm proxy** → **qwen3-8-27b** | LLM inference |
+| **LLM endpoint** — LiteLLM proxy *or* MLIS-served model | LLM inference (OpenAI-compatible `/v1/chat/completions`) |
+
+**LLM endpoint — LiteLLM is not a must.** The engine and the agent talk standard OpenAI-compatible
+`/v1/chat/completions`, so any OpenAI-compatible endpoint works: the in-cluster **LiteLLM proxy** *or* a
+model served directly by **MLIS** (`https://<model>.<namespace>.serving.<platform-domain>/v1`). Point
+`SLVD_LLM_BASE_URL` and `SLVD_LLM_MODEL` at the endpoint; when using MLIS, set `SLVD_LLM_API_KEY` under
+`engine.env` (auto-detection only covers the in-cluster LiteLLM master key). For the NemoClaw agent,
+set `litellm.baseUrl` to the same endpoint — the chart accepts any OpenAI-compatible URL.
 
 ### Why both a FastAPI engine *and* an OpenClaw agent?
 
@@ -168,9 +177,10 @@ deterministic engine enforces policy, the human makes the call.
 
 The agent calls all five read tools (safe), drafts the memo, then calls the gated submit.
 
-> **Model note — llama3.1-8b is NOT supported in this demo (validated).** We validated `llama3.1-8b` and it is **not usable here**:
-> its output does not fit the **accepted schema in OpenClaw** (the response/structure OpenClaw
-> expects for agent turns), so the agent loop breaks. Use the qwen3 model.
+> **Model note — use an agent model with native tool calling.** The agent drives the governed
+> MCP through multi-turn tool calls, so the model must support **tool/function calling**
+> reliably. A **~20B+ parameter** model is recommended for correct tool calling — smaller
+> models tend to drop or malform tool calls and break the agent loop.
 
 ---
 
@@ -178,32 +188,24 @@ The agent calls all five read tools (safe), drafts the memo, then calls the gate
 
 ```
 secure_loan_verification_demo/
-├── source_code/         # all demo code
-│   ├── engine/          # FastAPI workflow engine (pipeline, policy, audit, mailer, API)
-│   │   ├── api.py       # REST endpoints (runs, approvals, audit, memo)
-│   │   ├── workflow.py  # the 10-step governed pipeline
-│   │   ├── policy.py    # amount >= $5M OR KYC pending rule
-│   │   ├── mcp / agent / mailer / store / security / memo
-│   │   └── tests/       # unit tests
-│   ├── mcp-server/      # credit-memo-mcp (governed data tools + gated submit)
-│   ├── portal/          # React + TS frontend (analyst UI, approver console, mail)
-│   ├── skills/          # bank-credit skill (agent → governed MCP)
-│   ├── e2e/             # 8-scenario end-to-end suite + cluster verify + demo-run
-│   ├── orchestrate/     # autonomous build/test/deploy loop (gates, loop)
-│   ├── mockdata/        # the five bank-system fixtures (CRM, credit, txn, compliance, memo)
+├── source_code/         # all demo code, grouped by field
+│   ├── services/        # the three deployable components
+│   │   ├── engine/      # FastAPI workflow engine (pipeline, policy, audit, mailer, API)
+│   │   │   ├── api.py       # REST endpoints (runs, approvals, audit, memo)
+│   │   │   ├── workflow.py  # the 10-step governed pipeline
+│   │   │   ├── policy.py    # amount >= $5M OR KYC pending rule
+│   │   │   ├── mcp / agent / mailer / store / security / memo
+│   │   │   └── tests/       # unit tests
+│   │   ├── mcp-server/  # credit-memo-mcp (governed data tools + gated submit)
+│   │   ├── portal/      # React + TS frontend (analyst UI, approver console, mail)
+│   │   └── conftest.py  # pytest package resolution
+│   ├── agent/           # agent assets — skills/bank-credit (agent → governed MCP)
+│   ├── data/            # fixtures/ — the five bank-system fixtures (CRM, credit, txn, compliance, memo)
+│   ├── testing/         # e2e/ — 8-scenario end-to-end suite + cluster verify + demo-run
+│   ├── orchestration/   # autonomous build/test/deploy loop (gates, loop)
+│   ├── docker/          # Dockerfile (engine + mcp shared image) + Dockerfile.portal
 │   ├── Makefile         # entry point: test / build / deploy / verify / clean
-│   ├── requirements.txt # python deps (installed into the root venv/)
-│   ├── Dockerfile       # engine + credit-memo-mcp shared image (context = repo root)
-│   ├── Dockerfile.portal# portal (Vite build + nginx)
-│   └── conftest.py      # pytest package resolution
-├── charts/
-│   ├── slvd/            # SLVD Helm chart + EzAppConfig (PCAI BYOA deploy)
-│   └── nemoclaw/        # NemoClaw (OpenClaw agent) Helm chart — deployed first (prereq)
-├── slvd-0.12.4.tgz       # packaged SLVD helm chart (at repo root)
-├── nemoclaw-0.2.11.tgz  # packaged NemoClaw helm chart (at repo root)
-├── nemoclaw-icon.png    # NemoClaw chart icon (UI app tile logo)
-├── slvd-icon.png        # SLVD app icon (UI app tile logo)
-└── images/              # screenshots + architecture/business diagrams (html + png)
+│   └── requirements.txt # python deps (installed into the root venv/)
 ```
 
 ---
@@ -262,7 +264,7 @@ This creates the `nemoclaw` namespace + the OpenClaw gateway service that SLVD t
   - Mail:   `https://slvd-mail.${DOMAIN_NAME}`
 - **Pods**: exactly 4 (1 per component) — portal, engine, credit-memo-mcp, mailpit.
 - **Agent backend**: `SLVD_AGENT_BACKEND=openclaw` → the NemoClaw gateway service.
-- **LLM**: `SLVD_LLM_MODEL` via the litellm proxy at `SLVD_LLM_BASE_URL`.
+- **LLM**: `SLVD_LLM_MODEL` via any OpenAI-compatible endpoint (`SLVD_LLM_BASE_URL`) — the in-cluster LiteLLM proxy **or** an MLIS-served model.
 
 ### Default users (demo)
 
