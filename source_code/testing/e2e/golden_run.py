@@ -11,8 +11,8 @@ import time
 import urllib.request
 import urllib.error
 
-SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # source_code/
-REPO_ROOT = os.path.dirname(SRC_ROOT)                                     # repo root
+SRC_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # source_code/
+REPO_ROOT = os.path.dirname(SRC_ROOT)                                                    # repo root
 sys.path.insert(0, REPO_ROOT)
 sys.path.insert(0, SRC_ROOT)
 
