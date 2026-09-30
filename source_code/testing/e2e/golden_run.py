@@ -96,7 +96,7 @@ def main() -> int:
     checks = {
         "status_completed": run["status"] == "COMPLETED",
         "approved_by": run.get("approved_by") in ("Sarah Chen", "simulation (auto)"),
-        "memo_official": "/official/credit/" in (run.get("memo_official_path") or memo.get("path") or ""),
+        "memo_official": "/official/credit/" in (run.get("memo_official_path") or memo.get("path") or "").replace("\\", "/"),
         "memo_fields": all(n in memo.get("memo_md", "") for n in
                            ["Acme Industrial Holdings", "CL-77821", "$5,000,000", "76%", "BB",
                             "Revolving credit", "Recommended Decision"]),

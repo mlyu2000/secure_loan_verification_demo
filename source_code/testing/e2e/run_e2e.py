@@ -195,7 +195,7 @@ def s1_happy(sink, results, label):
     assert snap["run"]["approved_by"] == "Sarah Chen"
     assert snap["run"]["approval_role"] == "Senior Credit Officer"
     _, memo = api(f"/api/runs/{run_id}/memo", token=tok)
-    assert "/official/credit/" in memo["path"], f"S1: memo not in official: {memo['path']}"
+    assert "/official/credit/" in memo["path"].replace("\\", "/"), f"S1: memo not in official: {memo['path']}"
     for needle in ["Acme Industrial Holdings", "CL-77821", "$5,000,000", "76%", "BB",
                    "Revolving credit", "Recommended Decision"]:
         assert needle in memo["memo_md"], f"S1: memo missing {needle!r}"
@@ -259,7 +259,7 @@ def s4_reject(sink, results, label):
     audit_txt = " ".join((a["action"] + " " + (a["detail"] or "")) for a in snap["audit"])
     assert "Rejected by" in audit_txt, f"S4: audit missing rejection: {audit_txt}"
     _, memob = api(f"/api/runs/{run_id}/memo", token=tok)
-    assert "/official/" not in memob.get("path", ""), f"S4: should not publish official: {memob}"
+    assert "/official/" not in memob.get("path", "").replace("\\", "/"), f"S4: should not publish official: {memob}"
     # Resubmit after a brief settle (engine just applied the decision).
     time.sleep(1.0)
     code, b2 = api(f"/api/approvals/{req_id}/resubmit", "POST", None, tok)
